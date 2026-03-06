@@ -1,0 +1,76 @@
+{
+  "name": "awesome-node-auth",
+  "version": "1.0.1",
+  "description": "Database-agnostic JWT authentication and communication bus for Node.js",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nik2208/awesome-node-auth.git"
+  },
+  "keywords": [
+    "auth",
+    "node",
+    "nodejs",
+    "awesome-node-auth",
+    "authentication",
+    "middleware",
+    "express-auth",
+    "jwt",
+    "security",
+    "backend",
+    "authorization",
+    "nestjs",
+    "nextjs",
+    "angular",
+    "react",
+    "vue",
+    "ssr",
+    "ios",
+    "android",
+    "2fa",
+    "totp",
+    "flutter",
+    "bearer token",
+    "sms"
+  ],
+  "author": "Nicola Brecciaroli",
+  "license": "MIT",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/nik2208/awesome-node-auth/issues"
+  },
+  "homepage": "https://www.awesomenodeauth.com/",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "jsonwebtoken": "^9.0.3",
+    "otplib": "^13.3.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.3.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/supertest": "^6.0.3",
+    "@vitest/coverage-v8": "^4.0.18",
+    "express": "^5.2.1",
+    "supertest": "^7.2.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "overrides": {
+    "rollup": "^4.59.0"
+  }
+}
