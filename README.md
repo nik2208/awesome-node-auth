@@ -1,6 +1,6 @@
 # awesome-node-auth
 
-![npm version](https://img.shields.io/npm/v/nik2208/awesome-node-auth)
+![npm version](https://img.shields.io/npm/v/awesome-node-auth)
 ![license](https://img.shields.io/github/license/nik2208/awesome-node-auth)
 ![github stars](https://img.shields.io/github/stars/nik2208/awesome-node-auth)
 [![](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/nik2208)
