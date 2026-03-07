@@ -35,6 +35,8 @@ interface SseConnection {
   userId?: string;
   tenantId?: string;
   heartbeatTimer?: ReturnType<typeof setInterval>;
+  /** ID of the last event successfully sent to this connection. */
+  lastEventId?: string;
 }
 
 /**
@@ -53,6 +55,14 @@ export interface SseManagerOptions {
    * Required for horizontal scaling.
    */
   distributor?: ISseDistributor;
+
+  /**
+   * When `true` (default), events with the same ID are deduplicated per connection.
+   * This prevents clients from receiving the same event multiple times when
+   * subscribed to multiple matching topics.
+   * @default true
+   */
+  deduplicate?: boolean;
 }
 
 /**
@@ -86,8 +96,14 @@ export class SseManager {
    */
   readonly heartbeatIntervalMs: number;
 
+  /**
+   * Whether to deduplicate events by ID per connection.
+   */
+  readonly deduplicate: boolean;
+  
   constructor(options?: SseManagerOptions) {
     this.heartbeatIntervalMs = options?.heartbeatIntervalMs ?? 30_000;
+    this.deduplicate = options?.deduplicate !== false;
     this.distributor = options?.distributor;
 
     if (this.distributor) {
@@ -195,6 +211,8 @@ export class SseManager {
       if (event.tenantId && conn.tenantId && conn.tenantId !== event.tenantId) continue;
 
       try {
+        if (this.deduplicate && event.id === conn.lastEventId) continue;
+        conn.lastEventId = event.id;
         this.write(conn.res, event);
       } catch {
         this.disconnect(conn.id);

@@ -1,6 +1,6 @@
 {
   "name": "awesome-node-auth",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Database-agnostic JWT authentication and communication bus for Node.js",
   "main": "dist/index.js",
   "scripts": {
@@ -36,7 +36,16 @@
     "totp",
     "flutter",
     "bearer token",
-    "sms"
+    "sms",
+    "mcp",
+    "model-context-protocol",
+    "cursor-mcp",
+    "event-bus",
+    "pub-sub",
+    "message-queue",
+    "redis",
+    "vscode-mcp",
+    "antigravity-mcp"
   ],
   "author": "Nicola Brecciaroli",
   "license": "MIT",

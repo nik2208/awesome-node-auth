@@ -38,6 +38,8 @@ export interface AuthToolsOptions {
     heartbeatIntervalMs?: number;
     /** Distributor for cross-instance event synchronization. */
     distributor?: ISseDistributor;
+    /** @default true */
+    deduplicate?: boolean;
   };
 
   /**
@@ -159,7 +161,9 @@ export class AuthTools {
     // 3. SSE broadcast (topic per tenant or global)
     if (this.sseManager) {
       const topics = this.resolveTopics(eventName, options);
-      const streamEvent: Omit<StreamEvent, 'id' | 'timestamp' | 'topic'> = {
+      const streamEvent: Omit<StreamEvent, 'id' | 'timestamp' | 'topic'> & { id: string; timestamp: string } = {
+        id,
+        timestamp,
         type: eventName,
         data: telemetryEvent,
         userId: options.userId,
