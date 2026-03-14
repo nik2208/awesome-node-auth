@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Awesome Node Auth</title>
+    <link rel="stylesheet" href="base.css">
+</head>
+
+<body>
+    <div class="auth-container">
+        <img src="" alt="Logo" class="logo hidden">
+        <h1 class="site-name">Awesome Node Auth</h1>
+        <h2>Create Account</h2>
+
+        <div id="alert" class="alert hidden"></div>
+
+        <form id="register-form">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div class="form-group">
+                    <label for="firstName">First Name</label>
+                    <input type="text" id="firstName" name="firstName" required>
+                </div>
+                <div class="form-group">
+                    <label for="lastName">Last Name</label>
+                    <input type="text" id="lastName" name="lastName" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <div class="form-group">
+                <label for="confirmPassword">Confirm Password</label>
+                <input type="password" id="confirmPassword" name="confirmPassword" required>
+            </div>
+            <button type="submit" id="submit-btn">Register</button>
+        </form>
+
+        <div class="footer-links">
+            <p>Already have an account? <a href="login">Login</a></p>
+        </div>
+    </div>
+
+    <script src="auth.js?v=2"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            await AuthService.init();
+
+            if (AuthService.user) {
+                window.location.href = '/';
+                return;
+            }
+
+            const form = document.getElementById('register-form');
+            const alert = document.getElementById('alert');
+            const submitBtn = document.getElementById('submit-btn');
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                alert.className = 'alert hidden';
+
+                if (form.password.value !== form.confirmPassword.value) {
+                    alert.textContent = 'Passwords do not match';
+                    alert.classList.add('alert-error');
+                    alert.classList.remove('hidden');
+                    return;
+                }
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Creating account...';
+
+                const payload = {
+                    email: form.email.value,
+                    password: form.password.value,
+                    firstName: form.firstName.value,
+                    lastName: form.lastName.value
+                };
+
+                try {
+                    const result = await AuthService.apiCall('/register', 'POST', payload);
+
+                    if (result.success) {
+                        alert.textContent = 'Registration successful! Redirecting...';
+                        alert.classList.add('alert-success');
+                        alert.classList.remove('hidden');
+
+                        // Attempt auto-login if library returns success
+                        const loginRes = await AuthService.apiCall('/login', 'POST', {
+                            email: payload.email,
+                            password: payload.password
+                        });
+
+                        if (loginRes.success) {
+                            window.location.href = '/';
+                        } else {
+                            window.location.href = 'login?registered=true';
+                        }
+                    } else {
+                        alert.textContent = result.error || 'Registration failed';
+                        alert.classList.add('alert-error');
+                        alert.classList.remove('hidden');
+                    }
+                } catch (err) {
+                    alert.textContent = 'An unexpected error occurred';
+                    alert.classList.add('alert-error');
+                    alert.classList.remove('hidden');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Register';
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

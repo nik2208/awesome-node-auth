@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magic Link - Awesome Node Auth</title>
+    <link rel="stylesheet" href="base.css">
+</head>
+
+<body>
+    <div class="auth-container">
+        <img src="" alt="Logo" class="logo hidden">
+        <h1 class="site-name">Awesome Node Auth</h1>
+        <h2>Magic Link</h2>
+
+        <div id="alert" class="alert hidden"></div>
+
+        <form id="magic-link-form">
+            <p class="footer-links" style="margin-bottom: 20px; text-align: left;">
+                Enter your email and we'll send you a magic link to sign in instantly.
+            </p>
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            <button type="submit" id="submit-btn" data-feature="magicLink">Send Magic Link</button>
+        </form>
+
+        <div id="success-message" class="hidden">
+            <div class="alert alert-success">
+                A magic link has been sent to your email. Check your inbox and click the link to log in.
+            </div>
+        </div>
+
+        <div class="footer-links">
+            <a href="login">Back to login</a>
+        </div>
+    </div>
+
+    <script src="auth.js?v=2"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            await AuthService.init();
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+            const alert = document.getElementById('alert');
+            const form = document.getElementById('magic-link-form');
+            const successMsg = document.getElementById('success-message');
+
+            // If token in URL, verify it automatically
+            if (token) {
+                form.classList.add('hidden');
+                document.querySelector('h2').textContent = 'Verifying Magic Link';
+                alert.textContent = 'Verifying your link, please wait...';
+                alert.className = 'alert';
+                alert.classList.remove('hidden');
+
+                try {
+                    const result = await AuthService.apiCall('/magic-link/verify', 'POST', { token });
+                    if (result.success) {
+                        alert.textContent = 'Successfully logged in! Redirecting...';
+                        alert.className = 'alert alert-success';
+                        setTimeout(() => window.location.href = '/', 1500);
+                    } else {
+                        alert.textContent = result.error || 'Invalid or expired magic link';
+                        alert.className = 'alert alert-error';
+                    }
+                } catch (err) {
+                    alert.textContent = 'An unexpected error occurred';
+                    alert.className = 'alert alert-error';
+                }
+                return;
+            }
+
+            // Otherwise show request form
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                alert.className = 'alert hidden';
+                const submitBtn = document.getElementById('submit-btn');
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Sending...';
+
+                try {
+                    const result = await AuthService.apiCall('/magic-link/send', 'POST', {
+                        email: form.email.value,
+                        mode: 'login'
+                    });
+
+                    if (result.success) {
+                        form.classList.add('hidden');
+                        successMsg.classList.remove('hidden');
+                    } else {
+                        alert.textContent = result.error || 'Failed to send magic link';
+                        alert.className = 'alert alert-error';
+                        alert.classList.remove('hidden');
+                    }
+                } catch (err) {
+                    alert.textContent = 'An unexpected error occurred';
+                    alert.className = 'alert alert-error';
+                    alert.classList.remove('hidden');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Send Magic Link';
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

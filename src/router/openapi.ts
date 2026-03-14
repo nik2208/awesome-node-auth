@@ -659,6 +659,8 @@ export interface AdminOpenApiOptions {
   hasApiKeys?: boolean;
   /** Include webhook management endpoints. @default false */
   hasWebhooks?: boolean;
+  /** Include UI customization endpoints. @default false */
+  hasUi?: boolean;
 }
 
 /**
@@ -680,6 +682,7 @@ export function buildAdminOpenApiSpec(
     hasLinkedAccounts = false,
     hasApiKeys = false,
     hasWebhooks = false,
+    hasUi = false,
   } = options;
 
   const paths: OpenApiDocument['paths'] = {};
@@ -1169,6 +1172,65 @@ export function buildAdminOpenApiSpec(
     };
   }
 
+  // ── UI Customization admin (optional) ──────────────────────────────────────
+  if (hasUi) {
+    paths[`${basePath}/api/ui-settings`] = {
+      get: {
+        summary: 'Get UI customization settings',
+        operationId: 'adminGetUiSettings',
+        tags: ['Admin — UI'],
+        security: [adminAuth],
+        responses: {
+          200: { description: 'UI settings', content: { 'application/json': { schema: { $ref: '#/components/schemas/UiSettings' } } } },
+          401: { description: 'Unauthorized' },
+        },
+      },
+      post: {
+        summary: 'Update UI customization settings',
+        operationId: 'adminUpdateUiSettings',
+        tags: ['Admin — UI'],
+        security: [adminAuth],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/UiSettings' } } },
+        },
+        responses: {
+          200: { description: 'Settings updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          401: { description: 'Unauthorized' },
+        },
+      },
+    };
+    paths[`${basePath}/api/ui/logo`] = {
+      post: {
+        summary: 'Upload a custom logo image',
+        operationId: 'adminUploadLogo',
+        tags: ['Admin — UI'],
+        security: [adminAuth],
+        requestBody: {
+          content: {
+            'multipart/form-data': {
+              schema: { type: 'object', properties: { logo: { type: 'string', format: 'binary' } } },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'Logo uploaded', content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean' }, logoUrl: { type: 'string' } } } } } },
+          401: { description: 'Unauthorized' },
+        },
+      },
+      delete: {
+        summary: 'Remove custom logo',
+        operationId: 'adminDeleteLogo',
+        tags: ['Admin — UI'],
+        security: [adminAuth],
+        responses: {
+          200: { description: 'Logo removed', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          401: { description: 'Unauthorized' },
+        },
+      },
+    };
+  }
+
   // ── Schemas ────────────────────────────────────────────────────────────────
   const schemas: Record<string, unknown> = {
     SuccessResponse: {
@@ -1244,6 +1306,15 @@ export function buildAdminOpenApiSpec(
         secret: { type: 'string', description: 'Masked as *** if set', nullable: true },
       },
     },
+    UiSettings: {
+      type: 'object',
+      properties: {
+        primaryColor: { type: 'string', example: '#1a1a2e' },
+        secondaryColor: { type: 'string', example: '#ffffff' },
+        logoUrl: { type: 'string', example: '/auth/ui/assets/logo/logo.png', nullable: true },
+        siteName: { type: 'string', example: 'My Auth Service' },
+      },
+    },
   };
 
   const tags = [
@@ -1255,6 +1326,7 @@ export function buildAdminOpenApiSpec(
     ...(hasSettings ? [{ name: 'Admin — Settings', description: 'Global auth settings' }] : []),
     ...(hasApiKeys ? [{ name: 'Admin — API Keys', description: 'API key / service token management' }] : []),
     ...(hasWebhooks ? [{ name: 'Admin — Webhooks', description: 'Outgoing webhook management' }] : []),
+    ...(hasUi ? [{ name: 'Admin — UI', description: 'UI customization and preview' }] : []),
   ];
 
   return {

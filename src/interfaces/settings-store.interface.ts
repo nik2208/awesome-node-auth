@@ -72,4 +72,21 @@ export interface AuthSettings {
    * Managed via the Admin UI's Control → Webhook Actions panel.
    */
   enabledWebhookActions?: string[];
+  /**
+   * Optional UI customization settings.
+   * Managed via the Admin UI's 🎨 UI Customization panel.
+   */
+  ui?: {
+    primaryColor: string;
+    secondaryColor: string;
+    logoUrl: string;
+    siteName: string;
+    logoPath: string;
+    /** Background color for the entire auth page (CSS color value, sets `--bg-color`). */
+    bgColor: string;
+    /** URL of a background image for the entire auth page (sets `--bg-image`). */
+    bgImage: string;
+    /** Background color for the form/card container (CSS color value, sets `--card-bg`). */
+    cardBg: string;
+  };
 }

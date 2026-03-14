@@ -1,0 +1,22 @@
+{
+  "name": "node-auth-advanced-demo",
+  "version": "1.0.0",
+  "description": "Express app with awesome-node-auth",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "awesome-node-auth": "^1.0.1",
+    "express": "^5.0.0",
+    "express-rate-limit": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "ts-node": "^10.0.0"
+  }
+}

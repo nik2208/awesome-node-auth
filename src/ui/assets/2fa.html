@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2FA Verification - Awesome Node Auth</title>
+    <link rel="stylesheet" href="base.css">
+</head>
+
+<body>
+    <div class="auth-container">
+        <img src="" alt="Logo" class="logo hidden">
+        <h1 class="site-name">Awesome Node Auth</h1>
+        <h2>Two-Factor Authentication</h2>
+
+        <div id="alert" class="alert alert-error hidden"></div>
+
+        <form id="2fa-form">
+            <div class="form-group">
+                <label for="code">Verification Code</label>
+                <p id="method-text" class="footer-links" style="margin-bottom: 8px; text-align: left; font-size: 12px;">
+                </p>
+                <input type="text" id="code" name="code" required placeholder="000000"
+                    style="text-align: center; letter-spacing: 4px; font-size: 18px;">
+            </div>
+            <button type="submit" id="submit-btn">Verify Code</button>
+        </form>
+
+        <div id="setup-section" class="hidden">
+            <p class="footer-links">Scan this QR code with your authenticator app:</p>
+            <img id="qr-code" style="display: block; margin: 16px auto; width: 200px; height: 200px;">
+            <p class="footer-links" style="font-size: 12px;">Or enter this code manually: <strong id="secret"></strong>
+            </p>
+        </div>
+
+        <div class="footer-links">
+            <a href="login">Back to login</a>
+        </div>
+    </div>
+
+    <script src="auth.js?v=2"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            await AuthService.init();
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+            const mode = urlParams.get('mode') || 'verify'; // verify or setup
+
+            if (!token && mode !== 'setup') {
+                window.location.href = 'login';
+                return;
+            }
+
+            const form = document.getElementById('2fa-form');
+            const alert = document.getElementById('alert');
+            const submitBtn = document.getElementById('submit-btn');
+            const methodText = document.getElementById('method-text');
+
+            if (mode === 'setup') {
+                document.querySelector('h2').textContent = '2FA Setup';
+                document.getElementById('setup-section').classList.remove('hidden');
+
+                // Fetch setup data
+                const setupData = await AuthService.apiCall('/2fa/setup', 'POST');
+                if (setupData.qrCode) {
+                    document.getElementById('qr-code').src = setupData.qrCode;
+                    document.getElementById('secret').textContent = setupData.secret;
+                } else {
+                    alert.textContent = 'Failed to load 2FA setup';
+                    alert.classList.remove('hidden');
+                }
+            } else {
+                methodText.textContent = 'Enter the code from your Authenticator App or SMS.';
+            }
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                alert.className = 'alert alert-error hidden';
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Verifying...';
+
+                const code = form.code.value;
+
+                try {
+                    let endpoint = '/2fa/verify';
+                    let payload = { tempToken: token, totpCode: code };
+
+                    if (mode === 'setup') {
+                        endpoint = '/2fa/verify-setup';
+                        payload = { token: code, secret: document.getElementById('secret').textContent };
+                    }
+
+                    const result = await AuthService.apiCall(endpoint, 'POST', payload);
+
+                    if (result.success) {
+                        window.location.href = '/';
+                    } else {
+                        alert.textContent = result.error || 'Verification failed';
+                        alert.classList.remove('hidden');
+                    }
+                } catch (err) {
+                    alert.textContent = 'An unexpected error occurred';
+                    alert.classList.remove('hidden');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = mode === 'setup' ? 'Verify Setup' : 'Verify Code';
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

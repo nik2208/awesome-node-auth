@@ -29,8 +29,9 @@ export function createAuthMiddleware(config: AuthConfig): RequestHandler {
       res.status(403).json({ error: 'No access token provided' });
       return;
     }
-    // CSRF double-submit check only applies to cookie-based auth
-    if (!usingBearer && config.csrf?.enabled) {
+    // CSRF double-submit check only applies to cookie-based auth and state-changing methods
+    const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+    if (!usingBearer && config.csrf?.enabled && !safeMethods.includes(req.method)) {
       const csrfCookie = tokenService.extractTokenFromCookie(req, 'csrf-token');
       const csrfHeader = req.headers['x-csrf-token'] as string | undefined;
       if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {

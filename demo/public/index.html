@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>awesome-node-auth — Live Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0b1320;
+      --surface: #0f1c2e;
+      --border:  #1a2e42;
+      --teal:    #00c896;
+      --teal2:   #00a87a;
+      --text:    #c8dce8;
+      --muted:   #4a6a7a;
+      --red:     #ff6a6a;
+      --yellow:  #ffb347;
+      --radius:  10px;
+      --font: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      --mono: 'Fira Code', 'Cascadia Code', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .logo {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--teal);
+      letter-spacing: -0.5px;
+    }
+    .logo span { color: #fff; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(0,200,150,.1);
+      border: 1px solid rgba(0,200,150,.25);
+      border-radius: 100px;
+      padding: 2px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--teal);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .pulse {
+      width: 6px; height: 6px;
+      background: var(--teal);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:.4; transform:scale(.7); }
+    }
+    .status-chip {
+      margin-left: auto;
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-chip.authed { color: var(--teal); }
+    .status-chip .dot {
+      width:7px; height:7px; border-radius:50%;
+      background: var(--muted);
+    }
+    .status-chip.authed .dot { background: var(--teal); }
+    .admin-link {
+      font-size: 12px;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      transition: color .15s, border-color .15s;
+    }
+    .admin-link:hover { color: var(--teal); border-color: var(--teal); }
+
+    /* ── Main layout ── */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 400px 1fr;
+      gap: 0;
+      height: calc(100vh - 54px);
+      overflow: hidden;
+    }
+    @media (max-width: 700px) {
+      main { grid-template-columns: 1fr; height: auto; overflow: auto; }
+    }
+
+    /* ── Left panel ── */
+    .panel-left {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .tab {
+      flex: 1;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 11px 4px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color .15s, background .15s;
+      font-family: var(--font);
+    }
+    .tab:hover { color: #8ab0c0; }
+    .tab.active {
+      color: var(--teal);
+      border-bottom-color: var(--teal);
+      background: rgba(0,200,150,.04);
+    }
+
+    .form-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .endpoint {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: #3a8a60;
+      background: rgba(0,200,150,.06);
+      border: 1px solid rgba(0,200,150,.12);
+      border-radius: 6px;
+      padding: 5px 10px;
+      margin-bottom: 14px;
+    }
+
+    label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      margin-top: 10px;
+      margin-bottom: 4px;
+    }
+
+    input[type=email], input[type=password], input[type=text] {
+      width: 100%;
+      background: #0e1928;
+      border: 1px solid rgba(0,200,150,.15);
+      border-radius: 8px;
+      color: #d0e8e0;
+      font-size: 14px;
+      padding: 9px 12px;
+      outline: none;
+      font-family: var(--font);
+      transition: border-color .15s, box-shadow .15s;
+    }
+    input:focus {
+      border-color: var(--teal2);
+      box-shadow: 0 0 0 3px rgba(0,168,122,.12);
+    }
+
+    .btn {
+      margin-top: 14px;
+      background: linear-gradient(135deg, var(--teal2), #007a58);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      font-family: var(--font);
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:hover { opacity: .9; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn.secondary {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,.1);
+      color: #7a8a9a;
+      margin-top: 8px;
+    }
+    .btn.secondary:hover { background: rgba(255,255,255,.06); color: #c8d6e8; }
+    .btn.danger {
+      background: rgba(200,50,50,.15);
+      border: 1px solid rgba(200,50,50,.3);
+      color: #ff8a8a;
+      margin-top: 8px;
+    }
+    .btn.danger:hover { background: rgba(200,50,50,.28); }
+
+    .info-box {
+      background: rgba(0,200,150,.06);
+      border: 1px solid rgba(0,200,150,.15);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: #80b0a0;
+      line-height: 1.6;
+      margin-top: 10px;
+    }
+    .info-box strong { color: #d0f0e8; }
+    .info-box code {
+      background: rgba(0,200,150,.12);
+      color: var(--teal);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: var(--mono);
+    }
+
+    .user-card {
+      background: rgba(0,200,150,.05);
+      border: 1px solid rgba(0,200,150,.15);
+      border-radius: 10px;
+      padding: 14px;
+      margin-top: 10px;
+    }
+    .user-card .avatar {
+      width: 42px; height: 42px;
+      background: linear-gradient(135deg, var(--teal2), #005a40);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+    .user-card .email { font-size: 15px; font-weight: 600; color: #d0e8e0; }
+    .user-card .meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .user-card .meta span {
+      background: rgba(0,200,150,.1);
+      border: 1px solid rgba(0,200,150,.2);
+      color: var(--teal);
+      border-radius: 100px;
+      padding: 1px 8px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .token-box {
+      background: #060d17;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-top: 10px;
+    }
+    .token-box .label {
+      font-size: 10px;
+      font-weight: 700;
+      color: #2a6a4a;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 4px;
+    }
+    .token-box code {
+      font-size: 11px;
+      color: var(--teal);
+      font-family: var(--mono);
+      word-break: break-all;
+      line-height: 1.5;
+    }
+
+    .hint { font-size: 13px; color: var(--muted); margin-top: 6px; }
+    .hint a, .hint .link-btn {
+      color: var(--teal2);
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-size: inherit;
+      font-family: inherit;
+      text-decoration: underline;
+      padding: 0;
+    }
+
+    /* ── Right panel: response viewer ── */
+    .panel-right {
+      background: #070f1a;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .resp-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid rgba(255,255,255,.05);
+      background: rgba(255,255,255,.02);
+      min-height: 43px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+    .resp-label { font-size: 12px; color: #2a4a5a; }
+
+    .method {
+      font-size: 11px; font-weight: 800;
+      padding: 2px 7px; border-radius: 5px;
+      font-family: var(--mono); letter-spacing: .3px;
+    }
+    .method.GET    { background: rgba(0,200,150,.14);  color: var(--teal); }
+    .method.POST   { background: rgba(80,130,255,.14); color: #7090ff; }
+    .method.DELETE { background: rgba(255,80,80,.14);  color: #ff8a8a; }
+
+    .resp-path { font-size: 13px; color: #5a8a9a; font-family: var(--mono); }
+
+    .status {
+      font-size: 11px; font-weight: 700;
+      padding: 2px 8px; border-radius: 100px;
+    }
+    .status.ok  { background: rgba(0,200,150,.14); color: var(--teal); }
+    .status.err { background: rgba(255,160,50,.14); color: #ffb060; }
+    .status.srv { background: rgba(255,80,80,.14);  color: #ff8a8a; }
+
+    .resp-body { flex: 1; overflow: auto; }
+    pre.json {
+      margin: 0; padding: 16px 18px;
+      font-size: 13px; line-height: 1.75;
+      font-family: var(--mono);
+      color: #90c8b0;
+      white-space: pre;
+      background: none;
+    }
+
+    .resp-empty {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      height: 100%; min-height: 240px;
+      color: #1a3a4a; font-size: 14px;
+      text-align: center; gap: 10px;
+    }
+    .resp-empty svg { opacity: .4; }
+  </style>
+  <!--
+    awesome-node-auth browser client.
+    Registers window.AwesomeNodeAuth with zero config — apiPrefix is auto-detected
+    from the URL.  Handles CSRF injection, token refresh, and session state.
+  -->
+  <script src="/auth/ui/assets/auth.js"></script>
+  <script>
+    // Override onLogout so logout stays in-page (no redirect in the demo)
+    AwesomeNodeAuth.init({ onLogout: () => {} });
+  </script>
+</head>
+<body>
+
+<header>
+  <div class="logo">node<span>-auth</span></div>
+  <div class="badge"><span class="pulse"></span>live demo</div>
+  <div id="statusChip" class="status-chip">
+    <span class="dot"></span>
+    not authenticated
+  </div>
+  <a class="admin-link" href="/admin" target="_blank">🛡️ Admin Panel ↗</a>
+</header>
+
+<main>
+  <!-- ── Left: forms ── -->
+  <div class="panel-left">
+    <nav class="tabs">
+      <button class="tab active" data-tab="register">📝 Register</button>
+      <button class="tab"        data-tab="login">🔑 Login</button>
+      <button class="tab"        data-tab="profile">👤 Profile</button>
+    </nav>
+
+    <div class="form-area">
+
+      <!-- Register -->
+      <div id="tab-register">
+        <div class="endpoint">POST /auth/register</div>
+        <label>Email</label>
+        <input id="reg-email" type="email" value="alice@example.com" />
+        <label>Password</label>
+        <input id="reg-password" type="password" value="secret123" />
+        <button class="btn" onclick="doRegister()">Register →</button>
+        <div class="info-box" style="margin-top:14px">
+          After registering, you will be prompted to login.
+          The server uses <strong>bcrypt</strong> to hash passwords and
+          issues <strong>HttpOnly JWT cookies</strong>.
+        </div>
+      </div>
+
+      <!-- Login -->
+      <div id="tab-login" style="display:none">
+        <div class="endpoint">POST /auth/login</div>
+        <label>Email</label>
+        <input id="login-email" type="email" value="alice@example.com" />
+        <label>Password</label>
+        <input id="login-password" type="password" value="secret123" />
+        <button class="btn" onclick="doLogin()">Login →</button>
+        <p class="hint" id="no-users-hint" style="display:none">
+          No accounts yet.
+          <button class="link-btn" onclick="switchTab('register')">Register first →</button>
+        </p>
+        <div class="info-box" style="margin-top:14px">
+          Login sets an <code>accessToken</code> <strong>HttpOnly cookie</strong>
+          (plus a <code>refreshToken</code> cookie) — no tokens are
+          exposed to JavaScript.
+        </div>
+      </div>
+
+      <!-- Profile -->
+      <div id="tab-profile" style="display:none">
+        <div class="endpoint">GET /auth/me</div>
+        <div id="profile-authed" style="display:none">
+          <div class="user-card" id="user-card"></div>
+          <div class="info-box" style="margin-top:10px;margin-bottom:0">
+            Cookie: <code>accessToken</code> is HttpOnly — the browser sends it automatically.
+            JavaScript never sees the token value.
+          </div>
+          <button class="btn" onclick="doMe()">GET /auth/me →</button>
+          <button class="btn secondary" onclick="doLogout()">POST /auth/logout</button>
+        </div>
+        <div id="profile-guest">
+          <div class="info-box">
+            Not logged in. <button class="link-btn" onclick="switchTab('login')">Go to Login →</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Right: response viewer ── -->
+  <div class="panel-right">
+    <div class="resp-header" id="resp-header">
+      <span class="resp-label">Response</span>
+    </div>
+    <div class="resp-body">
+      <div class="resp-empty" id="resp-empty">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="1.2">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+        </svg>
+        <p>Send a request to see the response</p>
+      </div>
+      <pre class="json" id="resp-json" style="display:none"></pre>
+    </div>
+  </div>
+</main>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+// We only store the user's public profile data in JS.
+// The accessToken lives in an HttpOnly cookie — JS cannot read it.
+let _user = null;
+
+// ── Tab switching ────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  ['register','login','profile'].forEach(id => {
+    document.getElementById('tab-' + id).style.display = (id === name) ? '' : 'none';
+  });
+  if (name === 'profile') renderProfile();
+}
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+// ── Render helpers ───────────────────────────────────────────────────────────
+function setResp(method, path, status, body) {
+  const hdr = document.getElementById('resp-header');
+  const statusClass = status < 300 ? 'ok' : status < 500 ? 'err' : 'srv';
+  const statusTexts = {200:'OK',201:'Created',400:'Bad Request',401:'Unauthorized',403:'Forbidden',409:'Conflict'};
+  hdr.innerHTML = `
+    <span class="method ${method}">${method}</span>
+    <code class="resp-path">${path}</code>
+    <span class="status ${statusClass}">${status} ${statusTexts[status]||''}</span>
+  `;
+  document.getElementById('resp-empty').style.display = 'none';
+  const pre = document.getElementById('resp-json');
+  pre.style.display = '';
+  pre.textContent = JSON.stringify(body, null, 2);
+}
+
+function setAuthState(user) {
+  _user = user;
+  const chip = document.getElementById('statusChip');
+  if (user) {
+    chip.className = 'status-chip authed';
+    chip.innerHTML = `<span class="dot"></span><strong>${user.email || user.sub}</strong>&nbsp;·&nbsp;role: ${user.role || 'user'}`;
+  } else {
+    chip.className = 'status-chip';
+    chip.innerHTML = `<span class="dot"></span>not authenticated`;
+  }
+}
+
+function renderProfile() {
+  const authed = document.getElementById('profile-authed');
+  const guest  = document.getElementById('profile-guest');
+  if (_user) {
+    authed.style.display = '';
+    guest.style.display  = 'none';
+    document.getElementById('user-card').innerHTML = `
+      <div class="avatar">👤</div>
+      <div class="email">${_user.email || _user.sub}</div>
+      <div class="meta">id: ${_user.id || _user.sub} &nbsp; <span>${_user.role || 'user'}</span></div>
+    `;
+  } else {
+    authed.style.display = 'none';
+    guest.style.display  = '';
+  }
+}
+
+// ── awesome-node-auth client (auth.js) ───────────────────────────────────────
+// auth.js registers window.AwesomeNodeAuth — the browser client for awesome-node-auth.
+// It automatically handles CSRF injection, token refresh, and session management.
+// No extra configuration needed: apiPrefix is derived from the URL.
+
+// ── API calls — delegate to AwesomeNodeAuth for session/CSRF handling ─────────────
+async function callApi(method, path, body) {
+  // Use the AwesomeNodeAuth intercepted fetch so CSRF + auto-refresh work automatically
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  try {
+    const res = await fetch(path, opts);
+    const data = await res.json().catch(() => ({}));
+    return { status: res.status, data };
+  } catch (err) {
+    return { status: 0, data: { error: String(err) } };
+  }
+}
+
+// ── Endpoint handlers ─────────────────────────────────────────────────────────
+
+async function doRegister() {
+  const email    = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+  const result = await AwesomeNodeAuth.register(email, password);
+  setResp('POST', '/auth/register', result.success ? 201 : 400, result);
+  if (result.success) {
+    // Pre-fill login form and switch there
+    document.getElementById('login-email').value = email;
+    document.getElementById('login-password').value = password;
+    switchTab('login');
+  }
+}
+
+async function doLogin() {
+  const email    = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const result = await AwesomeNodeAuth.login(email, password);
+  setResp('POST', '/auth/login', result.success ? 200 : 401, result);
+  if (result.success && !result.requires2fa) {
+    setAuthState(AwesomeNodeAuth.getUser());
+    switchTab('profile');
+  }
+}
+
+async function doMe() {
+  const loggedIn = await AwesomeNodeAuth.checkSession();
+  const user = AwesomeNodeAuth.getUser();
+  setResp('GET', '/auth/me', loggedIn ? 200 : 401, user || { error: 'Not authenticated' });
+  if (loggedIn) setAuthState(user);
+  else setAuthState(null);
+}
+
+async function doLogout() {
+  // Override redirect so we can update the UI in-page instead
+  await AwesomeNodeAuth.logout();
+  setResp('POST', '/auth/logout', 200, { success: true });
+  setAuthState(null);
+  switchTab('login');
+}
+
+// ── Enter key shortcuts ───────────────────────────────────────────────────────
+document.getElementById('reg-password').addEventListener('keydown', e => { if (e.key === 'Enter') doRegister(); });
+document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+</script>
+</body>
+</html>

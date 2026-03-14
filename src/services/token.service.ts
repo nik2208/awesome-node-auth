@@ -40,59 +40,108 @@ export class TokenService {
     }
   }
 
+  private getCookieName(name: string, config: AuthConfig): string {
+    if (!config.cookieOptions?.secure) return name;
+
+    // __Host- needs Secure, Path=/, and NO Domain.
+    // We use it if path is '/' (default) and domain is not set.
+    const isPathRoot = !config.cookieOptions?.path || config.cookieOptions.path === '/';
+    if (isPathRoot && !config.cookieOptions?.domain) {
+      return `__Host-${name}`;
+    }
+
+    return `__Secure-${name}`;
+  }
+
   setTokenCookies(res: Response, tokens: TokenPair, config: AuthConfig): void {
-    const cookieOpts = {
+    const commonOpts = {
       httpOnly: true,
       secure: config.cookieOptions?.secure ?? false,
       sameSite: (config.cookieOptions?.sameSite ?? 'lax') as 'strict' | 'lax' | 'none',
-      domain: config.cookieOptions?.domain,
+      path: config.cookieOptions?.path ?? '/',
     };
-    res.cookie('accessToken', tokens.accessToken, {
-      ...cookieOpts,
-      maxAge: 15 * 60 * 1000,
-    });
-    res.cookie('refreshToken', tokens.refreshToken, {
-      ...cookieOpts,
+
+    const setCookie = (name: string, value: string, extraOpts: any = {}) => {
+      const finalName = this.getCookieName(name, config);
+      const opts = { ...commonOpts, ...extraOpts };
+      if (finalName.startsWith('__Host-')) {
+        delete opts.domain;
+      } else {
+        opts.domain = config.cookieOptions?.domain;
+      }
+      res.cookie(finalName, value, opts);
+    };
+
+    setCookie('accessToken', tokens.accessToken, { maxAge: 15 * 60 * 1000 });
+
+    const refreshPath = config.cookieOptions?.refreshTokenPath
+      ?? (config.apiPrefix ? `${config.apiPrefix}/refresh` : '/auth/refresh');
+    setCookie('refreshToken', tokens.refreshToken, {
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: config.cookieOptions?.refreshTokenPath ?? '/',
+      path: refreshPath
     });
+
     if (config.csrf?.enabled) {
-      // Double-submit cookie: non-HttpOnly so JS can read it and send as X-CSRF-Token header.
-      // 16 bytes (128 bits) is the OWASP-recommended minimum entropy for CSRF tokens.
-      res.cookie('csrf-token', this.generateSecureToken(16), {
+      setCookie('csrf-token', this.generateSecureToken(16), {
         httpOnly: false,
-        secure: config.cookieOptions?.secure ?? false,
-        sameSite: (config.cookieOptions?.sameSite ?? 'lax') as 'strict' | 'lax' | 'none',
-        domain: config.cookieOptions?.domain,
-        maxAge: 15 * 60 * 1000,
+        maxAge: 15 * 60 * 1000
       });
     }
   }
 
   initCsrfToken(res: Response, config: AuthConfig): void {
     if (!config.csrf?.enabled) return;
-    res.cookie('csrf-token', this.generateSecureToken(16), {
+    const name = this.getCookieName('csrf-token', config);
+    const opts: any = {
       httpOnly: false,
       secure: config.cookieOptions?.secure ?? false,
       sameSite: (config.cookieOptions?.sameSite ?? 'lax') as 'strict' | 'lax' | 'none',
-      domain: config.cookieOptions?.domain,
+      path: config.cookieOptions?.path ?? '/',
       maxAge: 15 * 60 * 1000,
-    });
+    };
+    if (name.startsWith('__Host-')) {
+      delete opts.domain;
+    } else {
+      opts.domain = config.cookieOptions?.domain;
+    }
+    res.cookie(name, this.generateSecureToken(16), opts);
   }
 
   clearTokenCookies(res: Response, config?: AuthConfig): void {
-    const opts = {
+    const commonOpts: any = {
       secure: config?.cookieOptions?.secure ?? false,
       sameSite: (config?.cookieOptions?.sameSite ?? 'lax') as 'strict' | 'lax' | 'none',
-      domain: config?.cookieOptions?.domain,
+      path: config?.cookieOptions?.path ?? '/',
     };
-    res.clearCookie('accessToken', opts);
-    res.clearCookie('refreshToken', {
-      ...opts,
-      path: config?.cookieOptions?.refreshTokenPath ?? '/',
-    });
+
+    const clearCookie = (name: string, extraOpts: any = {}) => {
+      // For maximum robustness, we try to clear the primary name AND prefixed variants.
+      // Cookies are only cleared if BOTH name, path, and domain match exactly.
+      const primaryName = this.getCookieName(name, config || {} as AuthConfig);
+      const possibleNames = new Set([primaryName, `__Host-${name}`, `__Secure-${name}`, name]);
+
+      for (const finalName of possibleNames) {
+        const opts = { ...commonOpts, ...extraOpts };
+        if (finalName.startsWith('__Host-')) {
+          delete opts.domain;
+          opts.path = '/'; // __Host- requires path=/
+          opts.secure = true;
+        } else {
+          opts.domain = config?.cookieOptions?.domain;
+        }
+        res.clearCookie(finalName, opts);
+      }
+    };
+
+    clearCookie('accessToken');
+
+    // Mirror the path logic from setTokenCookies so the cookie is found and deleted.
+    const refreshPath = config?.cookieOptions?.refreshTokenPath
+      ?? (config?.apiPrefix ? `${config?.apiPrefix}/refresh` : '/auth/refresh');
+    clearCookie('refreshToken', { path: refreshPath });
+
     if (config?.csrf?.enabled) {
-      res.clearCookie('csrf-token', opts);
+      clearCookie('csrf-token');
     }
   }
 
@@ -101,10 +150,20 @@ export class TokenService {
   }
 
   extractTokenFromCookie(req: Request, cookieName: string): string | null {
-    // First try cookie-parser parsed cookies
-    if (req.cookies && req.cookies[cookieName]) {
-      return req.cookies[cookieName] as string;
+    // List of possible prefixed names in order of preference
+    const possibleNames = [
+      `__Host-${cookieName}`,
+      `__Secure-${cookieName}`,
+      cookieName
+    ];
+
+    for (const name of possibleNames) {
+      // First try cookie-parser parsed cookies
+      if (req.cookies && req.cookies[name]) {
+        return req.cookies[name] as string;
+      }
     }
+
     // Fallback: parse raw Cookie header
     const cookieHeader = req.headers?.cookie;
     if (!cookieHeader) return null;
@@ -113,6 +172,10 @@ export class TokenService {
       if (key) acc[key.trim()] = decodeURIComponent(val.join('='));
       return acc;
     }, {});
-    return cookies[cookieName] ?? null;
+
+    for (const name of possibleNames) {
+      if (cookies[name]) return cookies[name];
+    }
+    return null;
   }
 }

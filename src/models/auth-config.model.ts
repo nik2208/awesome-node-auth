@@ -39,10 +39,20 @@ export interface AuthConfig {
   refreshTokenSecret: string;
   accessTokenExpiresIn?: string;
   refreshTokenExpiresIn?: string;
+  /**
+   * The global base path where the auth router is mounted in your Express app
+   * (e.g. `'/api/auth'` or `'/auth'`).
+   *
+   * This acts as the single source of truth for email links, cookie paths, and
+   * redirects. It can be overridden per-router instance by passing a local
+   * `apiPrefix` via the `RouterOptions`.
+   */
+  apiPrefix?: string;
   cookieOptions?: {
     secure?: boolean;
     sameSite?: 'strict' | 'lax' | 'none';
     domain?: string;
+    path?: string;
     /**
      * Path for the refresh-token cookie.
      * Defaults to `'/'` so the cookie is sent on every request and the
@@ -195,4 +205,49 @@ export interface AuthConfig {
    * ```
    */
   buildTokenPayload?: (user: BaseUser) => Record<string, unknown>;
+
+  /**
+   * Optional built-in static UI configuration.
+   */
+  ui?: {
+    /** Whether to enable and serve the static UI. Default is false. */
+    enabled?: boolean;
+    /** The URL where the login page is served (used for redirects). Default: `/auth/ui/login` */
+    loginUrl?: string;
+    /** Optional URL where the register page is served. Default: `/auth/ui/register` */
+    registerUrl?: string;
+    /**
+     * Optional raw CSS string injected into every UI page via a `<style>` tag.
+     * Use this to override any CSS variable or rule without providing a full stylesheet.
+     * See the Built-in UI documentation for the full list of overridable CSS variables.
+     */
+    customCss?: string;
+    /** Optional URL to a custom logo image displayed in the UI forms. */
+    customLogo?: string;
+
+    // Legacy settings kept for compatibility with UI router previews
+    primaryColor?: string;
+    secondaryColor?: string;
+    logoUrl?: string;
+    siteName?: string;
+
+    /**
+     * Background color for the entire page (sets the `--bg-color` CSS variable).
+     * Accepts any valid CSS color value, e.g. `'#f0f4ff'` or `'rgba(240,244,255,1)'`.
+     */
+    bgColor?: string;
+
+    /**
+     * URL of a background image for the entire page (sets the `--bg-image` CSS variable).
+     * The image is rendered with `background-size: cover; background-position: center`.
+     * Example: `'https://example.com/auth-bg.jpg'`
+     */
+    bgImage?: string;
+
+    /**
+     * Background color for the form/card container (sets the `--card-bg` CSS variable).
+     * Accepts any valid CSS color value. Default is `#ffffff`.
+     */
+    cardBg?: string;
+  };
 }

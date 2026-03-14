@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linking Account - Awesome Node Auth</title>
+    <link rel="stylesheet" href="base.css">
+</head>
+
+<body>
+    <div class="auth-container">
+        <img src="" alt="Logo" class="logo hidden">
+        <h1 class="site-name">Awesome Node Auth</h1>
+        <h2>Account Linking</h2>
+
+        <div id="alert" class="alert hidden"></div>
+
+        <div id="loading" class="footer-links">
+            Completing account linking, please wait…
+        </div>
+
+        <div id="footer" class="footer-links hidden">
+            <a href="login">Go to login</a>
+        </div>
+    </div>
+
+    <script src="auth.js?v=2"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            await AuthService.init();
+
+            const params = new URLSearchParams(window.location.search);
+            const token = params.get('token');
+            const alertEl = document.getElementById('alert');
+            const loading = document.getElementById('loading');
+            const footer = document.getElementById('footer');
+
+            function showResult(msg, isError) {
+                loading.classList.add('hidden');
+                footer.classList.remove('hidden');
+                alertEl.textContent = msg;
+                alertEl.className = 'alert ' + (isError ? 'alert-error' : 'alert-success');
+            }
+
+            if (!token) {
+                showResult('Invalid or missing link token.', true);
+                return;
+            }
+
+            try {
+                // POST /link-verify — completes the account link and optionally logs in
+                const result = await AuthService.apiCall('/link-verify', 'POST', {
+                    token,
+                    loginAfterLinking: true,
+                });
+
+                if (result.success) {
+                    showResult('Your account has been linked successfully! Redirecting…', false);
+                    setTimeout(() => {
+                        // If tokens were returned (loginAfterLinking), redirect to home
+                        window.location.href = '../..';
+                    }, 1500);
+                } else {
+                    showResult(result.error || 'Account linking failed.', true);
+                }
+            } catch (err) {
+                showResult(err.message || 'An unexpected error occurred.', true);
+            }
+        });
+    </script>
+</body>
+
+</html>

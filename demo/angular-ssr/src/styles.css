@@ -1,0 +1,33 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #0b1320;
+  --surface: #0f1c2e;
+  --border:  #1a2e42;
+  --teal:    #00c896;
+  --teal2:   #00a87a;
+  --text:    #c8dce8;
+  --muted:   #4a6a7a;
+  --red:     #ff6a6a;
+  --radius:  10px;
+  --font: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --mono: 'Fira Code', 'Cascadia Code', monospace;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  min-height: 100vh;
+}
+
+a { color: var(--teal2); }
+
+button {
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+input {
+  font-family: var(--font);
+}

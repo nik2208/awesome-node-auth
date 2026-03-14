@@ -44,10 +44,12 @@ export type { CreateApiKeyOptions, CreatedApiKey } from './services/api-key.serv
 
 export { createAuthMiddleware } from './middleware/auth.middleware';
 export { createApiKeyMiddleware } from './middleware/api-key.middleware';
-export { createAuthRouter } from './router/auth.router';
+export { createAuthRouter, buildUiLink } from './router/auth.router';
 export type { RouterOptions } from './router/auth.router';
 export { createAdminRouter } from './router/admin.router';
 export type { AdminOptions } from './router/admin.router';
+export { buildUiRouter } from './router/ui.router';
+export type { UiRouterOptions } from './router/ui.router';
 
 // ---- Event-driven tools system -------------------------------------------
 export { AuthEventBus } from './events/auth-event-bus';

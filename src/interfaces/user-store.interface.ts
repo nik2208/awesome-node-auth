@@ -128,4 +128,16 @@ export interface IUserStore<U extends BaseUser = BaseUser> {
    * @param offset Zero-based offset for pagination.
    */
   listUsers?(limit: number, offset: number): Promise<U[]>;
+
+  /**
+   * Update the user's profile information (first name, last name).
+   * Required to support the PATCH /auth/profile endpoint.
+   */
+  updateProfile?(userId: string, data: { firstName?: string | null; lastName?: string | null }): Promise<void>;
+
+  /**
+   * Update the user's phone number.
+   * Required to support the POST /auth/add-phone endpoint.
+   */
+  updatePhoneNumber?(userId: string, phoneNumber: string | null): Promise<void>;
 }

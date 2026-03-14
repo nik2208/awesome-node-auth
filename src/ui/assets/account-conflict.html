@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Linking - Awesome Node Auth</title>
+    <link rel="stylesheet" href="base.css">
+    <link rel="stylesheet" href="auth.css">
+</head>
+
+<body>
+    <div class="auth-container">
+        <h1 class="site-name" id="site-name">Awesome Node Auth</h1>
+        <h2>Account Linking Required</h2>
+
+        <div id="step-info">
+            <div class="alert alert-warning" style="margin-bottom: 1.25rem;">
+                An account with this email already exists. To link your
+                <strong id="provider-name">social</strong> account, click the button
+                below. We'll send a verification link to confirm ownership.
+            </div>
+
+            <p id="email-display" style="text-align:center; color:#6b7280; font-size:.875rem; margin-bottom:1.5rem;">
+            </p>
+
+            <button id="btn-send" class="btn btn-primary" style="width:100%;" onclick="sendLinkEmail()">
+                Send verification email
+            </button>
+
+            <p style="text-align:center; margin-top:1rem; font-size:.8125rem; color:#9ca3af;">
+                Or <a href="login">log in</a> and link later from your account settings.
+            </p>
+        </div>
+
+        <div id="step-sent" style="display:none; text-align:center;">
+            <div class="alert alert-success" style="margin-bottom:1rem;">
+                ✅ Verification email sent! Check your inbox and click the link to complete account linking.
+            </div>
+            <a href="login" class="btn btn-primary" style="text-decoration:none; display:inline-block;">
+                Go to Login
+            </a>
+        </div>
+
+        <div id="step-error" style="display:none;">
+            <div class="alert alert-error" id="error-msg"></div>
+            <div style="text-align:center; margin-top:1rem;">
+                <a href="login" class="btn btn-primary" style="text-decoration:none; display:inline-block;">
+                    Go to Login
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script src="auth.js?v=2"></script>
+    <script>
+        let _email = '';
+        let _provider = '';
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await AuthService.init();
+
+            const params = new URLSearchParams(window.location.search);
+            _email = params.get('email') || '';
+            _provider = params.get('provider') || 'social';
+
+            document.getElementById('provider-name').textContent = _provider;
+
+            if (_email) {
+                document.getElementById('email-display').textContent = `Email: ${_email}`;
+            }
+
+            // Apply site branding
+            const cfg = AuthService.config;
+            if (cfg?.ui?.siteName) {
+                document.getElementById('site-name').textContent = cfg.ui.siteName;
+                document.title = `Account Linking - ${cfg.ui.siteName}`;
+            }
+        });
+
+        async function sendLinkEmail() {
+            const btn = document.getElementById('btn-send');
+            btn.disabled = true;
+            btn.textContent = 'Sending…';
+
+            try {
+                // POST to the auth API - the pendingLinkStore will verify the pending OAuth link
+                const res = await AuthService.apiCall('/link-request', 'POST', {
+                    email: _email,
+                    provider: _provider,
+                });
+
+                if (res.success) {
+                    document.getElementById('step-info').style.display = 'none';
+                    document.getElementById('step-sent').style.display = 'block';
+                } else {
+                    throw new Error(res.error || 'Failed to send verification email');
+                }
+            } catch (err) {
+                document.getElementById('step-info').style.display = 'none';
+                document.getElementById('error-msg').textContent = err.message || 'Something went wrong. Please try again.';
+                document.getElementById('step-error').style.display = 'block';
+            }
+        }
+    </script>
+</body>
+
+</html>

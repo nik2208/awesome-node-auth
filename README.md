@@ -5,6 +5,7 @@
 ![github stars](https://img.shields.io/github/stars/nik2208/awesome-node-auth)
 [![](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/nik2208)
 ![](https://pixel.applikat.it/pixel.gif?site=awesomenodeauth.com)
+![](https://umami.applikat.it/p/XDb4MrjuD)
 
 [![NPM](https://nodei.co/npm/awesome-node-auth.png?downloads=true&downloadRank=true)](https://nodei.co/npm/awesome-node-auth/)
 
@@ -12,35 +13,6 @@
 A production-ready, **database-agnostic** JWT authentication and communication bus for Node.js written in TypeScript. It establishes a 360-degree communication and access control layer compatible with any Node.js framework (NestJS, Next.js, Express, Fastify, etc.) and any database through a simple interface pattern.
 
 **awesome-node-auth** is the simple answer to the management complexity and enterprise subscriptions often required for best-practice authentication. Solutions like *Supertokens* are extremely complex, paid if managed, and limited or hard to maintain if self-hosted. *Supabase* is heavy, packed with features you're forced to carry along even if you don't need them, and similarly limited when self-hosted. **awesome-node-auth** gives you the same enterprise-grade features without the architectural bloat or vendor lock-in of cloud platforms.
-
-## Features
-
-- 🔐 **JWT Authentication** – Access & refresh token pair with HttpOnly cookies or bearer tokens
-- 🏠 **Local Strategy** – Email/password auth with bcrypt hashing and password reset
-- 🔄 **OAuth 2.0** – Google, GitHub, or any custom provider via `GenericOAuthStrategy`
-- 🪄 **Magic Links** – Passwordless email login; first magic-link counts as email verification
-- 📱 **SMS OTP** – Phone number verification via one-time codes
-- 🔑 **TOTP 2FA** – Time-based OTP compatible with Google Authenticator and Authy
-- 🔒 **Flexible 2FA** – `require2FA` works with any channel (TOTP, SMS, magic-link), including OAuth
-- 🔗 **Account Linking** – Link multiple OAuth providers; conflict resolution via `IPendingLinkStore`
-- 🗃️ **Database Agnostic** – Implement one interface (`IUserStore`) for any database
-- 🧩 **Strategy Pattern** – Plug in only the auth methods your app needs
-- 🛡️ **Middleware** – JWT verification middleware (cookie or `Authorization: Bearer`)
-- 🚀 **Express Router** – Drop-in `/auth` router with all endpoints pre-wired
-- 📝 **Register Endpoint** – Optional `POST /auth/register` via `onRegister` callback
-- 👤 **Rich `/me` Profile** – Returns profile, metadata, roles, and permissions
-- 🧹 **Session Cleanup** – Optional `POST /auth/sessions/cleanup` for cron-based expiry
-- 🔒 **CSRF Protection** – Double-submit cookie pattern, opt-in via `csrf.enabled`
-- 🏷️ **Custom JWT Claims** – Inject project-specific data via `buildTokenPayload`
-- 📋 **User Metadata** – Arbitrary per-user key/value store via `IUserMetadataStore`
-- 🛡️ **Roles & Permissions** – RBAC with tenant awareness via `IRolesPermissionsStore`
-- 📅 **Session Management** – Device-aware session listing & revocation via `ISessionStore`
-- 🏢 **Multi-Tenancy** – Isolated multi-tenant apps via `ITenantStore`
-- 🗑️ **Account Deletion** – `DELETE /auth/account` self-service removal with full cleanup
-- 📧 **Email Verification** – `none` / `lazy` (configurable grace period) / `strict` modes
-- 📡 **Event-Driven Tools** – `AuthEventBus`, telemetry, SSE, outgoing/inbound webhooks
-- 🔑 **API Keys** – M2M bcrypt-hashed keys with scopes, expiry, IP allowlist, audit log
-- 📖 **OpenAPI / Swagger UI** – Auto-generated specs for auth, admin, and tools routers
 
 ## Installation
 
@@ -78,6 +50,37 @@ app.get('/protected', auth.middleware(), (req, res) => {
 
 app.listen(3000);
 ```
+## Features
+
+- 🔐 **JWT Authentication** – Access & refresh token pair with HttpOnly cookies or bearer tokens
+- 🏠 **Local Strategy** – Email/password auth with bcrypt hashing and password reset
+- 🔄 **OAuth 2.0** – Google, GitHub, or any custom provider via `GenericOAuthStrategy`
+- 🪄 **Magic Links** – Passwordless email login; first magic-link counts as email verification
+- 📱 **SMS OTP** – Phone number verification via one-time codes
+- 🔑 **TOTP 2FA** – Time-based OTP compatible with Google Authenticator and Authy
+- 🔒 **Flexible 2FA** – `require2FA` works with any channel (TOTP, SMS, magic-link), including OAuth
+- 🔗 **Account Linking** – Link multiple OAuth providers; conflict resolution via `IPendingLinkStore`
+- 🗃️ **Database Agnostic** – Implement one interface (`IUserStore`) for any database
+- 🧩 **Strategy Pattern** – Plug in only the auth methods your app needs
+- 🛡️ **Middleware** – JWT verification middleware (cookie or `Authorization: Bearer`)
+- 🚀 **Express Router** – Drop-in `/auth` router with all endpoints pre-wired
+- 📝 **Register Endpoint** – Optional `POST /auth/register` via `onRegister` callback
+- 👤 **Rich `/me` Profile** – Returns profile, metadata, roles, and permissions
+- 🧹 **Session Cleanup** – Optional `POST /auth/sessions/cleanup` for cron-based expiry
+- 🔒 **CSRF Protection** – Double-submit cookie pattern, opt-in via `csrf.enabled`
+- 🏷️ **Custom JWT Claims** – Inject project-specific data via `buildTokenPayload`
+- 📋 **User Metadata** – Arbitrary per-user key/value store via `IUserMetadataStore`
+- 🛡️ **Roles & Permissions** – RBAC with tenant awareness via `IRolesPermissionsStore`
+- 📅 **Session Management** – Device-aware session listing & revocation via `ISessionStore`
+- 🏢 **Multi-Tenancy** – Isolated multi-tenant apps via `ITenantStore`
+- 🗑️ **Account Deletion** – `DELETE /auth/account` self-service removal with full cleanup
+- 🔗 **Account Linking** –  Link Local/Oauth accounts belonging to the same user
+- 📧 **Email Verification** – `none` / `lazy` (configurable grace period) / `strict` modes
+- 📡 **Event-Driven Tools** – `AuthEventBus`, telemetry, SSE, outgoing/inbound webhooks
+- 🔑 **API Keys** – M2M bcrypt-hashed keys with scopes, expiry, IP allowlist, audit log
+- 📖 **OpenAPI / Swagger UI** – Auto-generated specs for auth, admin, and tools routers
+- 🪝 **Inbound/Outbound Webhooks management** - Easy webhook implementation
+- ⚙️ **Integrated Admin UI** - Integrate with AdminJS for Auth-related management
 
 ## Database Integration — Implementing IUserStore
 

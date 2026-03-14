@@ -1,0 +1,17 @@
+{
+  "name": "node-auth-demo",
+  "version": "1.0.0",
+  "description": "Live demo server for awesome-node-auth — in-memory storage, email/password auth, JWT cookies, admin panel.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "awesome-node-auth": "^1.0.1",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

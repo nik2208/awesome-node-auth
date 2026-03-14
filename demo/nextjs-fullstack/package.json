@@ -1,0 +1,27 @@
+{
+  "name": "node-auth-nextjs-fullstack",
+  "version": "1.0.0",
+  "description": "Next.js fullstack demo for awesome-node-auth — Pages Router, in-memory store, JWT cookies, middleware protection.",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "start": "next dev",
+    "build": "next build",
+    "serve": "next start"
+  },
+  "dependencies": {
+    "awesome-node-auth": "^1.0.1",
+    "next": "^15.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18.3.7",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,219 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+    --primary-color: #4a90d9;
+    --primary-color-hover: #357abd;
+    --secondary-color: #6c757d;
+    --secondary-color-hover: #5a6268;
+    --bg-color: #f8fafc;
+    --bg-image: none;
+    --card-bg: #ffffff;
+    --text-color: #1e293b;
+    --text-muted: #64748b;
+    --error-color: #ef4444;
+    --success-color: #22c55e;
+    --border-color: #e2e8f0;
+    --input-focus: #4a90d9;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--bg-color);
+    background-image: var(--bg-image);
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    color: var(--text-color);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.auth-container {
+    width: 100%;
+    max-width: 400px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+.logo {
+    display: block;
+    height: 48px;
+    width: auto;
+    margin: 0 auto 16px;
+}
+
+h1 {
+    font-size: 24px;
+    font-weight: 700;
+    text-align: center;
+    color: var(--primary-color);
+    margin-bottom: 4px;
+}
+
+h2 {
+    font-size: 18px;
+    font-weight: 400;
+    text-align: center;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+}
+
+.alert {
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    margin-bottom: 16px;
+    border: 1px solid transparent;
+}
+
+.alert-error {
+    background-color: #fef2f2;
+    color: var(--error-color);
+    border-color: #fee2e2;
+}
+
+.alert-success {
+    background-color: #f0fdf4;
+    color: var(--success-color);
+    border-color: #dcfce7;
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+}
+
+input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+input:focus {
+    outline: none;
+    border-color: var(--input-focus);
+    box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.1);
+}
+
+button {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s, opacity 0.2s;
+}
+
+button[type="submit"] {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+button[type="submit"]:hover {
+    background-color: var(--primary-color-hover);
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.divider {
+    position: relative;
+    margin: 24px 0;
+    border-top: 1px solid var(--border-color);
+}
+
+.divider span {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--card-bg);
+    padding: 0 8px;
+    font-size: 10px;
+    color: #9ca3af;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.social-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.btn-social {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background-color: white;
+    border: 1px solid var(--secondary-color);
+    color: var(--secondary-color);
+    text-decoration: none;
+    padding: 10px;
+}
+
+.btn-social:hover {
+    background-color: #f9fafb;
+    border-color: var(--secondary-color-hover);
+    color: var(--secondary-color-hover);
+}
+
+.icon {
+    width: 16px;
+    height: 16px;
+}
+
+.footer-links {
+    margin-top: 24px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+.footer-links a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.footer-links a:hover {
+    text-decoration: underline;
+}
+
+.hidden {
+    display: none !important;
+}

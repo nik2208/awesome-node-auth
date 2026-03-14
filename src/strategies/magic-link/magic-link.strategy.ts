@@ -21,8 +21,10 @@ export class MagicLinkStrategy {
     const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 min
     await userStore.updateMagicLinkToken(user.id, token, expiry);
     const siteUrlCfg = config.email?.siteUrl;
-    const siteUrl = siteUrlOverride || (Array.isArray(siteUrlCfg) ? (siteUrlCfg[0] ?? '') : (siteUrlCfg ?? ''));
-    const link = `${siteUrl}/auth/magic-link/verify?token=${token}`;
+    const defaultSiteUrl = Array.isArray(siteUrlCfg) ? (siteUrlCfg[0] ?? '') : (siteUrlCfg ?? '');
+    const basePath = siteUrlOverride || `${defaultSiteUrl}/auth`;
+    const cleanBasePath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
+    const link = `${cleanBasePath}/magic-link/verify?token=${token}`;
     if (config.email?.sendMagicLink) {
       await config.email.sendMagicLink(email, token, link, lang);
     } else if (config.email?.mailer) {

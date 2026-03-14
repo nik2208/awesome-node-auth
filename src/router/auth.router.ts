@@ -23,6 +23,7 @@ import { GenericOAuthStrategy } from '../strategies/oauth/generic-oauth.strategy
 import { createAuthMiddleware } from '../middleware/auth.middleware';
 import { AuthError } from '../models/errors';
 import { buildAuthOpenApiSpec, buildSwaggerUiHtml } from './openapi';
+import { buildUiRouter } from './ui.router';
 
 export interface RouterOptions {
   googleStrategy?: GoogleStrategy;
@@ -99,7 +100,18 @@ export interface RouterOptions {
    * }
    * ```
    */
-  onRegister?: (data: Record<string, unknown>, config: AuthConfig) => Promise<BaseUser>;
+  onRegister?: (data: Record<string, unknown>, config: AuthConfig, options: RouterOptions) => Promise<BaseUser>;
+
+  /**
+   * Local base path where this specific auth router instance is mounted.
+   *
+   * **Note:** If provided, this overrides the global `config.apiPrefix`.
+   * Use this when mounting multiple auth routers with different prefixes
+   * (e.g., API versioning `/v1/auth`, `/v2/auth`) while sharing a single global `AuthConfig`.
+   *
+   * @default config.apiPrefix || '/auth'
+   */
+  apiPrefix?: string;
 
   /**
    * Enable Swagger UI (`GET /openapi.json`, `GET /docs`) on the auth router.
@@ -139,6 +151,27 @@ export interface RouterOptions {
   cors?: {
     origins: string[];
   };
+
+  /**
+   * Optional directory containing Vanilla UI assets (html, js, css).
+   * If not provided, will look for 'ui-assets' relative to the library's dist.
+   */
+  uiAssetsDir?: string;
+
+  /**
+   * Optional directory where uploaded assets (like logos) are stored.
+   */
+  uploadDir?: string;
+
+  /**
+   * Branding and theming settings for the Vanilla UI.
+   */
+  ui?: {
+    siteName?: string;
+    primaryColor?: string;
+    secondaryColor?: string;
+    logoUrl?: string;
+  };
 }
 
 const tokenService = new TokenService();
@@ -151,7 +184,7 @@ function handleError(res: Response, err: unknown): void {
   if (err instanceof AuthError) {
     res.status(err.statusCode).json({ error: err.message, code: err.code });
   } else {
-    console.error('[awesome-node-auth] Unhandled error:', err);
+    console.error('[node-auth] Unhandled error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -180,7 +213,7 @@ function buildAllowedOrigins(config: AuthConfig, options: RouterOptions): string
 }
 
 /**
- * Dynamically resolves the best redirect / link base URL for the current
+  * Dynamically resolves the best redirect / link base URL for the current
  * request.  Rules (in order):
  *  1. If `allowedOrigins` is non-empty, try to match the request `Origin`
  *     header against the list and return the matching entry.
@@ -204,6 +237,31 @@ function resolveSiteUrl(req: Request, config: AuthConfig, allowedOrigins: string
     }
   }
   return getDefaultSiteUrl(config);
+}
+
+/**
+ * Resolves the effective apiPrefix by checking (1) RouterOptions, (2) AuthConfig, (3) defaulting to '/auth'.
+ * This ensures a single source of truth across the library.
+ * @internal
+ */
+export function resolveApiPrefix(config: AuthConfig, options?: RouterOptions): string {
+  return options?.apiPrefix || config.apiPrefix || '/auth';
+}
+
+/**
+ * Resolves the path to the static UI or legacy route base.
+ * @public
+ */
+export function buildUiLink(siteUrl: string, path: string, config: AuthConfig, options: RouterOptions): string {
+  const prefix = resolveApiPrefix(config, options);
+  const cleanPrefix = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+  const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+  if (config.ui?.enabled) {
+    const result = `${siteUrl}${cleanPrefix}/ui/${cleanPath}`;
+    return result;
+  }
+  const result = `${siteUrl}${cleanPrefix}/${cleanPath}`;
+  return result;
 }
 
 /**
@@ -326,6 +384,13 @@ export function createAuthRouter(
   options: RouterOptions = {}
 ): Router {
   const router = Router();
+
+  // Parameterize refresh token path by default based on apiPrefix
+  config.cookieOptions = {
+    ...config.cookieOptions,
+    refreshTokenPath: config.cookieOptions?.refreshTokenPath ?? `${options.apiPrefix || config.apiPrefix || '/auth'}/refresh`
+  };
+
   const authMiddleware = createAuthMiddleware(config);
   const localStrategy = new LocalStrategy(userStore, passwordService);
   const rl = options.rateLimiter ? [options.rateLimiter] : [];
@@ -413,7 +478,21 @@ export function createAuthRouter(
   });
 
   // POST /logout
-  router.post('/logout', ...rl, authMiddleware, async (req: Request, res: Response) => {
+  // We don't use the standard authMiddleware here because we want to clear cookies
+  // even if the token is expired or invalid.
+  router.post('/logout', ...rl, (req: Request, res: Response, next: NextFunction) => {
+    // Try to get the user from token, but don't block if it fails
+    const token = tokenService.extractTokenFromCookie(req, 'accessToken');
+    if (token) {
+      try {
+        const payload = tokenService.verifyAccessToken(token, config);
+        req.user = payload;
+      } catch (err) {
+        // Token dead, but we proceed to clear it
+      }
+    }
+    next();
+  }, async (req: Request, res: Response) => {
     try {
       if (req.user?.sub) {
         await userStore.updateRefreshToken(req.user.sub, null, null);
@@ -421,6 +500,8 @@ export function createAuthRouter(
       tokenService.clearTokenCookies(res, config);
       res.json({ success: true });
     } catch (err) {
+      // Even if DB update fails, make sure we clear cookies on the client
+      tokenService.clearTokenCookies(res, config);
       handleError(res, err);
     }
   });
@@ -480,13 +561,43 @@ export function createAuthRouter(
     }
   });
 
+  // PATCH /profile
+  router.patch('/profile', ...rl, authMiddleware, async (req: Request, res: Response) => {
+    try {
+      if (!userStore.updateProfile) {
+        res.status(501).json({ error: 'UserStore does not implement updateProfile' });
+        return;
+      }
+      const { firstName, lastName } = req.body as { firstName?: string | null; lastName?: string | null };
+      await userStore.updateProfile(req.user!.sub, { firstName, lastName });
+      res.json({ success: true });
+    } catch (err) {
+      handleError(res, err);
+    }
+  });
+
+  // POST /add-phone
+  router.post('/add-phone', ...rl, authMiddleware, async (req: Request, res: Response) => {
+    try {
+      if (!userStore.updatePhoneNumber) {
+        res.status(501).json({ error: 'UserStore does not implement updatePhoneNumber' });
+        return;
+      }
+      const { phoneNumber } = req.body as { phoneNumber: string | null };
+      await userStore.updatePhoneNumber(req.user!.sub, phoneNumber);
+      res.json({ success: true });
+    } catch (err) {
+      handleError(res, err);
+    }
+  });
+
   // POST /register (optional — only mounted when onRegister is provided)
   if (options.onRegister) {
     const onRegister = options.onRegister;
     router.post('/register', ...rl, async (req: Request, res: Response) => {
       try {
         const data = req.body as Record<string, unknown>;
-        const user = await onRegister(data, config);
+        const user = await onRegister(data, config, options);
         if (config.email?.sendWelcome) {
           await config.email.sendWelcome(user.email, data);
         } else if (config.email?.mailer) {
@@ -524,7 +635,7 @@ export function createAuthRouter(
         const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
         await userStore.updateResetToken(user.id, token, expiry);
         const siteUrl = resolveSiteUrl(req, config, allowedOrigins);
-        const link = `${siteUrl}/auth/reset-password?token=${token}`;
+        const link = buildUiLink(siteUrl, `/reset-password?token=${token}`, config, options);
         if (config.email?.sendPasswordReset) {
           await config.email.sendPasswordReset(email, token, link, emailLang);
         } else if (config.email?.mailer) {
@@ -699,7 +810,7 @@ export function createAuthRouter(
       const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
       await userStore.updateEmailVerificationToken(user.id, token, expiry);
       const siteUrl = resolveSiteUrl(req, config, allowedOrigins);
-      const link = `${siteUrl}/auth/verify-email?token=${token}`;
+      const link = buildUiLink(siteUrl, `/verify-email?token=${token}`, config, options);
       if (config.email?.sendVerificationEmail) {
         await config.email.sendVerificationEmail(user.email, token, link, emailLang);
       } else if (config.email?.mailer) {
@@ -770,7 +881,7 @@ export function createAuthRouter(
       const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
       await userStore.updateEmailChangeToken(user.id, newEmail, token, expiry);
       const siteUrl = resolveSiteUrl(req, config, allowedOrigins);
-      const link = `${siteUrl}/auth/change-email/confirm?token=${token}`;
+      const link = buildUiLink(siteUrl, `/change-email/confirm?token=${token}`, config, options);
       if (config.email?.sendVerificationEmail) {
         await config.email.sendVerificationEmail(newEmail, token, link, emailLang);
       } else if (config.email?.mailer) {
@@ -848,7 +959,7 @@ export function createAuthRouter(
           res.status(404).json({ error: 'User not found' });
           return;
         }
-        await magicLinkStrategy.sendMagicLink(user.email, userStore, config, emailLang, resolveSiteUrl(req, config, allowedOrigins));
+        await magicLinkStrategy.sendMagicLink(user.email, userStore, config, emailLang, buildUiLink(resolveSiteUrl(req, config, allowedOrigins), '', config, options));
         res.json({ success: true });
         return;
       }
@@ -858,7 +969,7 @@ export function createAuthRouter(
         res.status(400).json({ error: 'email is required' });
         return;
       }
-      await magicLinkStrategy.sendMagicLink(email, userStore, config, emailLang, resolveSiteUrl(req, config, allowedOrigins));
+      await magicLinkStrategy.sendMagicLink(email, userStore, config, emailLang, buildUiLink(resolveSiteUrl(req, config, allowedOrigins), '', config, options));
       res.json({ success: true });
     } catch (err) {
       handleError(res, err);
@@ -1105,7 +1216,7 @@ export function createAuthRouter(
             providerAccountId: user.providerAccountId,
             email: user.email,
             linkedAt: new Date(),
-          }).catch((e: unknown) => { console.error('[awesome-node-auth] linkAccount error (google):', e); });
+          }).catch((e: unknown) => { console.error('[node-auth] linkAccount error (google):', e); });
         }
         await handleOAuthLogin(req, res, user, config, redirectTo);
       } catch (err) {
@@ -1113,10 +1224,11 @@ export function createAuthRouter(
           const siteUrl = resolveOAuthRedirect((req.query as { state?: string }).state, config, allowedOrigins);
           const { email, providerAccountId } = (err.data ?? {}) as { email?: string; providerAccountId?: string };
           if (options.pendingLinkStore && email && providerAccountId) {
-            await options.pendingLinkStore.stash(email, 'google', providerAccountId).catch((e: unknown) => { console.error('[awesome-node-auth] pendingLinkStore.stash error (google):', e); });
+            await options.pendingLinkStore.stash(email, 'google', providerAccountId).catch((e: unknown) => { console.error('[node-auth] pendingLinkStore.stash error (google):', e); });
           }
           const emailParam = email ? `&email=${encodeURIComponent(email)}` : '';
-          res.redirect(`${siteUrl}/auth/account-conflict?provider=google&code=OAUTH_ACCOUNT_CONFLICT${emailParam}`);
+          const paramStr = `?provider=google&code=OAUTH_ACCOUNT_CONFLICT${emailParam}`;
+          res.redirect(buildUiLink(siteUrl, `/account-conflict${paramStr}`, config, options));
           return;
         }
         handleError(res, err);
@@ -1150,7 +1262,7 @@ export function createAuthRouter(
             providerAccountId: user.providerAccountId,
             email: user.email,
             linkedAt: new Date(),
-          }).catch((e: unknown) => { console.error('[awesome-node-auth] linkAccount error (github):', e); });
+          }).catch((e: unknown) => { console.error('[node-auth] linkAccount error (github):', e); });
         }
         await handleOAuthLogin(req, res, user, config, redirectTo);
       } catch (err) {
@@ -1158,10 +1270,11 @@ export function createAuthRouter(
           const siteUrl = resolveOAuthRedirect((req.query as { state?: string }).state, config, allowedOrigins);
           const { email, providerAccountId } = (err.data ?? {}) as { email?: string; providerAccountId?: string };
           if (options.pendingLinkStore && email && providerAccountId) {
-            await options.pendingLinkStore.stash(email, 'github', providerAccountId).catch((e: unknown) => { console.error('[awesome-node-auth] pendingLinkStore.stash error (github):', e); });
+            await options.pendingLinkStore.stash(email, 'github', providerAccountId).catch((e: unknown) => { console.error('[node-auth] pendingLinkStore.stash error (github):', e); });
           }
           const emailParam = email ? `&email=${encodeURIComponent(email)}` : '';
-          res.redirect(`${siteUrl}/auth/account-conflict?provider=github&code=OAUTH_ACCOUNT_CONFLICT${emailParam}`);
+          const paramStr = `?provider=github&code=OAUTH_ACCOUNT_CONFLICT${emailParam}`;
+          res.redirect(buildUiLink(siteUrl, `/account-conflict${paramStr}`, config, options));
           return;
         }
         handleError(res, err);
@@ -1195,7 +1308,7 @@ export function createAuthRouter(
               providerAccountId: user.providerAccountId,
               email: user.email,
               linkedAt: new Date(),
-            }).catch((e: unknown) => { console.error(`[awesome-node-auth] linkAccount error (${s.name}):`, e); });
+            }).catch((e: unknown) => { console.error(`[node-auth] linkAccount error (${s.name}):`, e); });
           }
           await handleOAuthLogin(req, res, user, config, redirectTo);
         } catch (err) {
@@ -1203,10 +1316,11 @@ export function createAuthRouter(
             const siteUrl = resolveOAuthRedirect((req.query as { state?: string }).state, config, allowedOrigins);
             const { email, providerAccountId } = (err.data ?? {}) as { email?: string; providerAccountId?: string };
             if (options.pendingLinkStore && email && providerAccountId) {
-              await options.pendingLinkStore.stash(email, s.name, providerAccountId).catch((e: unknown) => { console.error(`[awesome-node-auth] pendingLinkStore.stash error (${s.name}):`, e); });
+              await options.pendingLinkStore.stash(email, s.name, providerAccountId).catch((e: unknown) => { console.error(`[node-auth] pendingLinkStore.stash error (${s.name}):`, e); });
             }
             const emailParam = email ? `&email=${encodeURIComponent(email)}` : '';
-            res.redirect(`${siteUrl}/auth/account-conflict?provider=${encodeURIComponent(s.name)}&code=OAUTH_ACCOUNT_CONFLICT${emailParam}`);
+            const paramStr = `?provider=${encodeURIComponent(s.name)}&code=OAUTH_ACCOUNT_CONFLICT${emailParam}`;
+            res.redirect(buildUiLink(siteUrl, `/account-conflict${paramStr}`, config, options));
             return;
           }
           handleError(res, err);
@@ -1289,7 +1403,7 @@ export function createAuthRouter(
         const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
         await userStore.updateAccountLinkToken(userId, email, provider, tokenCode, expiry);
         const siteUrl = resolveSiteUrl(req, config, allowedOrigins);
-        const link = `${siteUrl}/auth/link-verify?token=${tokenCode}`;
+        const link = buildUiLink(siteUrl, `/link-verify?token=${tokenCode}`, config, options);
         if (config.email?.sendVerificationEmail) {
           await config.email.sendVerificationEmail(email, tokenCode, link, emailLang);
         } else if (config.email?.mailer) {
@@ -1336,7 +1450,7 @@ export function createAuthRouter(
           const pending = await options.pendingLinkStore.retrieve(email, provider);
           if (pending) {
             providerAccountId = pending.providerAccountId;
-            await options.pendingLinkStore.remove(email, provider).catch((e: unknown) => { console.error('[awesome-node-auth] pendingLinkStore.remove error:', e); });
+            await options.pendingLinkStore.remove(email, provider).catch((e: unknown) => { console.error('[node-auth] pendingLinkStore.remove error:', e); });
           }
         }
         await linkedAccountsStore.linkAccount(user.id, {
@@ -1401,13 +1515,25 @@ export function createAuthRouter(
     }
   });
 
+  // ── Vanilla UI (HTML/JS/CSS) ──────────────────────────────────────────────
+  if (config.ui?.enabled) {
+    router.use('/ui', buildUiRouter({
+      uiAssetsDir: options.uiAssetsDir,
+      uploadDir: options.uploadDir,
+      settingsStore: options.settingsStore,
+      authConfig: config,
+      routerOptions: options,
+      apiPrefix: resolveApiPrefix(config, options),
+    }));
+  }
+
   // ── Swagger / OpenAPI (optional) ───────────────────────────────────────────
   const swaggerEnabled =
     options.swagger === true ||
     (options.swagger !== false && process.env['NODE_ENV'] !== 'production');
 
   if (swaggerEnabled) {
-    const specBasePath = options.swaggerBasePath ?? '/auth';
+    const specBasePath = options.swaggerBasePath ?? resolveApiPrefix(config, options);
     router.get('/openapi.json', (_req: Request, res: Response) => {
       const spec = buildAuthOpenApiSpec(
         {
@@ -1433,7 +1559,7 @@ export function createAuthRouter(
   // Global error handler — catches any unhandled errors thrown by route handlers
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   router.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    console.error('[awesome-node-auth] Unhandled router error:', err);
+    console.error('[node-auth] Unhandled router error:', err);
     if (err instanceof AuthError) {
       res.status(err.statusCode).json({ error: err.message, code: err.code });
     } else {

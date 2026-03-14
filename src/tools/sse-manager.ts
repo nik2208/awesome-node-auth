@@ -100,7 +100,7 @@ export class SseManager {
    * Whether to deduplicate events by ID per connection.
    */
   readonly deduplicate: boolean;
-  
+
   constructor(options?: SseManagerOptions) {
     this.heartbeatIntervalMs = options?.heartbeatIntervalMs ?? 30_000;
     this.deduplicate = options?.deduplicate !== false;

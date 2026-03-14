@@ -613,19 +613,19 @@ describe('Admin Router', () => {
     expect(res.status).toBe(404);
   });
 
-  it('GET /admin HTML includes FEAT_LINKED_ACCOUNTS=true when store is provided', async () => {
+  it('GET /admin HTML includes featLinkedAccounts=true when store is provided', async () => {
     const res = await request(app).get('/admin/');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('FEAT_LINKED_ACCOUNTS = true');
+    expect(res.text).toContain('"featLinkedAccounts":true');
   });
 
-  it('GET /admin HTML includes FEAT_LINKED_ACCOUNTS=false when store is not provided', async () => {
+  it('GET /admin HTML includes featLinkedAccounts=false when store is not provided', async () => {
     const appNoLinked = express();
     appNoLinked.use(express.json());
     appNoLinked.use('/admin', createAdminRouter(stores.userStore, { adminSecret: ADMIN_SECRET }));
     const res = await request(appNoLinked).get('/admin/');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('FEAT_LINKED_ACCOUNTS = false');
+    expect(res.text).toContain('"featLinkedAccounts":false');
   });
 });
 
@@ -1011,7 +1011,7 @@ describe('POST /auth/register', () => {
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
     expect(res.body.userId).toBe('new-1');
-    expect(onRegister).toHaveBeenCalledWith({ email: 'new@test.com', password: 'mypass' }, config);
+    expect(onRegister).toHaveBeenCalledWith({ email: 'new@test.com', password: 'mypass' }, config, expect.objectContaining({ onRegister }));
   });
 
   it('returns 404 when onRegister is not configured', async () => {
