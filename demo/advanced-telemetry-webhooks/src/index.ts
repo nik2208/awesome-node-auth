@@ -1,21 +1,27 @@
 // ============================================================
-// Express integration — awesome-node-auth@1.10.10
-// Auth mode: COOKIES
+// Express + MongoDB integration — awesome-node-auth@1.10.10
+// Advanced demo: full feature set (CSRF, CORS, email verification,
+// OAuth Google + GitHub) backed by a real MongoDB database.
+//
+// Prerequisites:
+//   docker compose up -d   (starts MongoDB — see docker-compose.yml)
+//   cp .env.example .env   (fill in secrets)
+//   npm install
+//   npm start
 // ============================================================
-// Install:
-//   npm install awesome-node-auth express
 
 import express from 'express';
-import { AuthConfigurator, PasswordService } from 'awesome-node-auth';
-import type { AuthConfig, IUserStore } from 'awesome-node-auth';
+import { MongoClient } from 'mongodb';
+import rateLimit from 'express-rate-limit';
+import { AuthConfigurator, PasswordService, AuthError } from 'awesome-node-auth';
+import type { AuthConfig } from 'awesome-node-auth';
 import { createAdminRouter } from 'awesome-node-auth';
 import type { AdminOptions } from 'awesome-node-auth';
 
-// ---- 1. Implement IUserStore (replace with your DB adapter) ----
-// Use get_user_store_example to get a ready-made implementation for your DB.
-// import { MyUserStore } from './user-store';
+// ---- 1. IUserStore implementation (MongoDB) ----
+import { MongoDbUserStore } from './user-store';
 
-// ---- 2. Optional stores (use get_optional_stores for implementations) ----
+// ---- 2. Optional stores (uncomment + provide implementations) ----
 // import { MyRbacStore }    from './rbac-store';
 // const rbacStore    = new MyRbacStore();
 // import { MySessionStore } from './session-store';
@@ -63,44 +69,77 @@ const authConfig: AuthConfig = {
   },
 };
 
-// ---- 4. Wire up ----
+// ---- 4. Bootstrap (async — MongoDB connection required) ----
 
-const userStore: IUserStore = new MyUserStore(); // swap with your store
-const auth = new AuthConfigurator(authConfig, userStore);
-const app  = express();
-app.use(express.json());
+async function main(): Promise<void> {
+  // Connect to MongoDB (started via docker-compose or a cloud URI)
+  const mongoUri = process.env.MONGO_URI ?? 'mongodb://localhost:27017';
+  const dbName   = process.env.MONGO_DB  ?? 'awesome-node-auth-demo';
 
-// Auth routes (POST /auth/login, POST /auth/register, POST /auth/refresh, …)
-app.use('/auth', auth.router({
-  onRegister: async (data, cfg) => {
-    const hash = await new PasswordService().hash(data.password as string);
-    return userStore.create({ email: data.email as string, password: hash, role: 'user' });
-  },
-  // rbacStore,
-  // sessionStore,
-  // tenantStore,
-  // Dynamic CORS: the router adds Access-Control-* headers automatically
-  // for every origin listed in CORS_ORIGINS.  On OAuth flows it also embeds
-  // the caller's origin in the state parameter and redirects back to it after
-  // a successful login (validated against the same allowlist).
-  cors: {
-    origins: process.env.CORS_ORIGINS?.split(',').map(s => s.trim()).filter(Boolean) ?? [],
-  },
-}));
+  if (!process.env.MONGO_URI) {
+    console.warn('⚠️  MONGO_URI is not set — using default localhost MongoDB. Set it in .env for production.');
+  }
+  const client = new MongoClient(mongoUri);
+  await client.connect();
 
-// Mount admin UI at /admin  (protect with a strong secret in production)
-const adminOptions: AdminOptions = {
-  adminSecret: process.env.ADMIN_SECRET ?? 'change-me-admin-secret',
-  // rbacStore,
-  // sessionStore,
-  // tenantStore,
-};
-app.use('/admin', createAdminRouter(userStore, adminOptions));
+  const userStore = new MongoDbUserStore(client.db(dbName));
+  await userStore.init(); // create indexes
 
-// ---- 5. Protect your own routes ----
+  const passwordService = new PasswordService();
+  const auth = new AuthConfigurator(authConfig, userStore);
+  const app  = express();
+  app.use(express.json());
 
-app.get('/profile', auth.middleware(), (req, res) => {
-  res.json({ user: (req as any).user });
+  // Auth routes (POST /auth/login, POST /auth/register, POST /auth/refresh, …)
+  app.use('/auth', auth.router({
+    onRegister: async (data) => {
+      const email    = typeof data.email    === 'string' ? data.email.trim()    : '';
+      const password = typeof data.password === 'string' ? data.password.trim() : '';
+      if (!email || !password) throw new AuthError('email and password are required', 'VALIDATION_ERROR', 400);
+      const existing = await userStore.findByEmail(email);
+      if (existing) throw new AuthError('Email already registered', 'EMAIL_EXISTS', 409);
+      const hash = await passwordService.hash(password);
+      return userStore.create({ email, password: hash, role: 'user' });
+    },
+    // rbacStore,
+    // sessionStore,
+    // tenantStore,
+    // Dynamic CORS: the router adds Access-Control-* headers automatically
+    // for every origin listed in CORS_ORIGINS.  On OAuth flows it also embeds
+    // the caller's origin in the state parameter and redirects back to it after
+    // a successful login (validated against the same allowlist).
+    cors: {
+      origins: process.env.CORS_ORIGINS?.split(',').map(s => s.trim()).filter(Boolean) ?? [],
+    },
+  }));
+
+  // Mount admin UI at /admin  (protect with a strong secret in production)
+  const adminOptions: AdminOptions = {
+    adminSecret: process.env.ADMIN_SECRET ?? 'change-me-admin-secret',
+    // rbacStore,
+    // sessionStore,
+    // tenantStore,
+  };
+  app.use('/admin', createAdminRouter(userStore, adminOptions));
+
+  // ---- 5. Protect your own routes ----
+  // Rate-limit protected API routes to prevent brute-force / scraping.
+  const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
+
+  app.get('/profile', apiLimiter, auth.middleware(), (req, res) => {
+    res.json({ user: (req as any).user });
+  });
+
+  const port = Number(process.env.PORT) || 3000;
+  app.listen(port, () => {
+    console.log(`\n  🔐  awesome-node-auth advanced demo (MongoDB)\n`);
+    console.log(`  http://localhost:${port}/auth    → auth endpoints`);
+    console.log(`  http://localhost:${port}/profile → protected route (JWT required)`);
+    console.log(`  http://localhost:${port}/admin   → admin panel\n`);
+  });
+}
+
+main().catch((err) => {
+  console.error('Failed to start:', err);
+  process.exit(1);
 });
-
-app.listen(3000, () => console.log('Listening on http://localhost:3000'));

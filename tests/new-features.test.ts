@@ -308,6 +308,7 @@ function createAdminStores() {
     create: vi.fn(),
     updateRefreshToken: vi.fn(), updateResetToken: vi.fn(), updatePassword: vi.fn(),
     updateTotpSecret: vi.fn(), updateMagicLinkToken: vi.fn(), updateSmsCode: vi.fn(),
+    updateLastLogin: vi.fn(),
     listUsers: vi.fn((limit, offset) => Promise.resolve([...adminUsers.values()].slice(offset, offset + limit))),
   };
 
@@ -1121,7 +1122,7 @@ describe('DELETE /auth/account', () => {
       .set('Cookie', `accessToken=${token}`);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect((store as Record<string, unknown>)['deleteUser']).toHaveBeenCalledWith('u1');
+    expect((store as any)['deleteUser']).toHaveBeenCalledWith('u1');
   });
 
   it('falls back to clearing tokens when deleteUser is not implemented', async () => {
@@ -1179,7 +1180,7 @@ describe('Admin Router — settingsStore and GET /api/users/:id/tenants', () => 
   const ADMIN_SECRET = 'admin-secret-ctrl';
   let app: express.Application;
   let settingsData: Record<string, unknown>;
-  let settingsStore: { getSettings: ReturnType<typeof vi.fn>; updateSettings: ReturnType<typeof vi.fn> };
+  let settingsStore: any;
   let tenantStore: ITenantStore;
   let userStore: IUserStore;
 
@@ -1188,7 +1189,7 @@ describe('Admin Router — settingsStore and GET /api/users/:id/tenants', () => 
     settingsStore = {
       getSettings: vi.fn(() => Promise.resolve({ ...settingsData })),
       updateSettings: vi.fn((s) => { Object.assign(settingsData, s); return Promise.resolve(); }),
-    };
+    } as any;
 
     const tenantRecords = new Map<string, Tenant>([['t1', { id: 't1', name: 'Acme', isActive: true }]]);
     const memberships = new Map<string, Set<string>>();
@@ -1214,6 +1215,7 @@ describe('Admin Router — settingsStore and GET /api/users/:id/tenants', () => 
       findByEmail: vi.fn(), findById: vi.fn((id) => Promise.resolve(dbUsers.get(id as string) ?? null)),
       create: vi.fn(), updateRefreshToken: vi.fn(), updateResetToken: vi.fn(),
       updatePassword: vi.fn(), updateTotpSecret: vi.fn(), updateMagicLinkToken: vi.fn(), updateSmsCode: vi.fn(),
+      updateLastLogin: vi.fn(),
       listUsers: vi.fn((limit, offset) => Promise.resolve([...dbUsers.values()].slice(offset, offset + limit))),
     };
 
@@ -1299,6 +1301,7 @@ describe('Admin Router — user and session filter', () => {
       findByEmail: vi.fn(), findById: vi.fn(),
       create: vi.fn(), updateRefreshToken: vi.fn(), updateResetToken: vi.fn(),
       updatePassword: vi.fn(), updateTotpSecret: vi.fn(), updateMagicLinkToken: vi.fn(), updateSmsCode: vi.fn(),
+      updateLastLogin: vi.fn(),
       listUsers: vi.fn((limit, offset) => Promise.resolve([...dbUsers.values()].slice(offset, offset + limit))),
     };
 

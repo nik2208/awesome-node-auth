@@ -7,7 +7,7 @@ Each example uses an **in-memory store** so nothing needs to be configured to ge
 
 | Folder | Stack | StackBlitz |
 |--------|-------|-----------|
-| [`./`](.) | Express + Vanilla HTML | [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz_small.svg)](https://stackblitz.com/github/nik2208/awesome-node-auth/tree/main/demo) |
+| [`express-vanilla/`](./express-vanilla) | Express + Vanilla HTML | [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz_small.svg)](https://stackblitz.com/github/nik2208/awesome-node-auth/tree/main/demo/express-vanilla) |
 | [`nestjs-fullstack/`](./nestjs-fullstack) | NestJS + TypeScript + Vanilla HTML | [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz_small.svg)](https://stackblitz.com/github/nik2208/awesome-node-auth/tree/main/demo/nestjs-fullstack) |
 | [`nextjs-fullstack/`](./nextjs-fullstack) | Next.js 15 Pages Router + React | [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz_small.svg)](https://stackblitz.com/github/nik2208/awesome-node-auth/tree/main/demo/nextjs-fullstack) |
 | [`angular-ssr/`](./angular-ssr) | Angular 19 SSR + Express + Guards + Interceptors | [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz_small.svg)](https://stackblitz.com/github/nik2208/awesome-node-auth/tree/main/demo/angular-ssr) |
