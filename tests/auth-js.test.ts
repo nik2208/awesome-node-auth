@@ -1183,3 +1183,218 @@ describe('AuthService.apiCall()', () => {
         expect(String(url)).toContain('/api/v2/login');
     });
 });
+
+// ── Headless mode ────────────────────────────────────────────────────────────
+//
+// When auth.js runs in headless mode it must NOT redirect window.location on
+// session expiry or refresh failure.  Two activation paths exist:
+//
+//  a) SSR injection: __AUTH_CONFIG__ has headless:true → applied by AuthService.init()
+//  b) Explicit init: AwesomeNodeAuth.init({ headless:true }) → applied immediately
+//
+// All tests below rely on the single interceptor installed by the global beforeEach
+// (loadAuthJs is NOT re-called in order to avoid double-interceptor stacking).
+
+describe('headless mode — _applyHeadlessIfNeeded()', () => {
+    const redirected: string[] = [];
+
+    beforeEach(() => {
+        redirected.length = 0;
+        Object.defineProperty(window, 'location', {
+            writable: true,
+            configurable: true,
+            value: {
+                pathname: '/docs/intro',
+                href: 'http://localhost/docs/intro',
+                set href(v: string) { redirected.push(v); },
+            },
+        });
+    });
+
+    // ── Path a: SSR injection (AuthService.init reads __AUTH_CONFIG__) ────────
+
+    it('does NOT redirect on session expiry when __AUTH_CONFIG__ has headless:true', async () => {
+        // Set headless config — AuthService.init() will read it and call _applyHeadlessIfNeeded()
+        (window as any).__AUTH_CONFIG__ = { apiPrefix: '/auth', headless: true };
+
+        fetchMock.mockResolvedValueOnce(fakeResponse({ id: '1', email: 'u@x.com' }, 200));
+        await (window as any).AuthService.init();
+
+        // Protected fetch → 401 → refresh fails → should NOT redirect
+        fetchMock
+            .mockResolvedValueOnce(fakeResponse({ error: 'Unauthorized' }, 401))
+            .mockResolvedValueOnce(fakeResponse({ success: false }));
+
+        await fetch('/api/protected');
+
+        expect(redirected).toHaveLength(0);
+    });
+
+    it('does NOT redirect on session expiry when /ui/config returns headless:true', async () => {
+        // No SSR injection — config is fetched from /ui/config
+        fetchMock
+            .mockResolvedValueOnce(fakeResponse({ apiPrefix: '/auth', headless: true }))  // /config
+            .mockResolvedValueOnce(fakeResponse({ id: '1', email: 'u@x.com' }, 200));      // /me
+        await (window as any).AuthService.init();
+
+        fetchMock
+            .mockResolvedValueOnce(fakeResponse({ error: 'Unauthorized' }, 401))
+            .mockResolvedValueOnce(fakeResponse({ success: false }));
+
+        await fetch('/api/protected');
+
+        expect(redirected).toHaveLength(0);
+    });
+
+    it('allows explicit onSessionExpired override even in headless mode', async () => {
+        const onSessionExpired = vi.fn();
+        (window as any).__AUTH_CONFIG__ = { apiPrefix: '/auth', headless: true };
+
+        fetchMock.mockResolvedValueOnce(fakeResponse({ id: '1', email: 'u@x.com' }, 200));
+        await (window as any).AuthService.init();
+
+        // Register custom handler AFTER init — overrides the headless no-op
+        (window as any).AwesomeNodeAuth.init({ onSessionExpired });
+
+        fetchMock
+            .mockResolvedValueOnce(fakeResponse({ error: 'Unauthorized' }, 401))
+            .mockResolvedValueOnce(fakeResponse({ success: false }));
+
+        await fetch('/api/protected');
+
+        expect(onSessionExpired).toHaveBeenCalledOnce();
+        expect(redirected).toHaveLength(0); // custom handler ran, no href redirect
+    });
+
+    // ── Path b: Explicit AwesomeNodeAuth.init({ headless: true }) ─────────────
+
+    it('does NOT redirect when AwesomeNodeAuth.init({ headless:true }) is called', async () => {
+        // Simulates the Docusaurus inline head script calling init() before components mount
+        (window as any).AwesomeNodeAuth.init({ apiPrefix: '/auth', headless: true });
+
+        // Protected fetch → 401 → refresh fails → should NOT redirect
+        fetchMock
+            .mockResolvedValueOnce(fakeResponse({ error: 'Unauthorized' }, 401))
+            .mockResolvedValueOnce(fakeResponse({ success: false }));
+
+        await fetch('/api/protected');
+
+        expect(redirected).toHaveLength(0);
+    });
+
+    it('does NOT redirect on logout when headless:true', async () => {
+        (window as any).__AUTH_CONFIG__ = { apiPrefix: '/auth', headless: true };
+
+        fetchMock
+            .mockResolvedValueOnce(fakeResponse({ id: '1', email: 'u@x.com' }, 200))
+            .mockResolvedValueOnce(fakeResponse({ success: true }));
+        await (window as any).AuthService.init();
+        await (window as any).AwesomeNodeAuth.logout();
+
+        expect(redirected).toHaveLength(0);
+    });
+
+    it('still performs token refresh in headless mode (fetch interceptor unchanged)', async () => {
+        (window as any).__AUTH_CONFIG__ = { apiPrefix: '/auth', headless: true };
+
+        fetchMock.mockResolvedValueOnce(fakeResponse({ id: '1', email: 'u@x.com' }, 200));
+        await (window as any).AuthService.init();
+
+        // 401 → refresh succeeds → retry succeeds
+        fetchMock
+            .mockResolvedValueOnce(fakeResponse({ error: 'Unauthorized' }, 401))
+            .mockResolvedValueOnce(fakeResponse({ success: true }))
+            .mockResolvedValueOnce(fakeResponse({ data: 'secret' }));
+
+        await fetch('/api/protected');
+
+        expect(fetchMock).toHaveBeenCalledTimes(4); // init(/me) + 401 + refresh + retry
+        expect(redirected).toHaveLength(0);
+    });
+
+    it('AwesomeNodeAuth.init({ headless:true }) is idempotent with custom onLogout override', async () => {
+        // First pass: headless installs no-op for onLogout
+        (window as any).AwesomeNodeAuth.init({ headless: true });
+        // Second pass: explicit onLogout override — must win over the no-op
+        const customLogout = vi.fn();
+        (window as any).AwesomeNodeAuth.init({ onLogout: customLogout });
+
+        fetchMock.mockResolvedValueOnce(fakeResponse({ success: true }));
+        await (window as any).AwesomeNodeAuth.logout();
+
+        expect(customLogout).toHaveBeenCalledOnce();
+        expect(redirected).toHaveLength(0);
+    });
+});
+
+// ── headless mode — /config endpoint exposes headless flag ───────────────────
+// These tests verify the server-side contract: the /config response must include
+// { headless: true } when the UI router is configured in headless mode.
+// We test the router-level logic directly without spinning up a real server.
+
+import { buildUiRouter } from '../src/router/ui.router';
+import requestLib from 'supertest';
+import expressLib from 'express';
+
+describe('buildUiRouter — headless mode', () => {
+    const headlessAuthConfig = {
+        accessTokenSecret: 'test',
+        refreshTokenSecret: 'test',
+        ui: { headless: true },
+    };
+
+    const fullAuthConfig = {
+        accessTokenSecret: 'test',
+        refreshTokenSecret: 'test',
+        ui: { headless: false },
+    };
+
+    it('GET /config returns headless:true when authConfig.ui.headless is true', async () => {
+        const app = expressLib();
+        app.use('/auth/ui', buildUiRouter({ authConfig: headlessAuthConfig }));
+
+        const res = await requestLib(app).get('/auth/ui/config');
+
+        expect(res.status).toBe(200);
+        expect(res.body.headless).toBe(true);
+    });
+
+    it('GET /config returns headless:false when authConfig.ui.headless is false', async () => {
+        const app = expressLib();
+        app.use('/auth/ui', buildUiRouter({ authConfig: fullAuthConfig }));
+
+        const res = await requestLib(app).get('/auth/ui/config');
+
+        expect(res.status).toBe(200);
+        expect(res.body.headless).toBe(false);
+    });
+
+    it('GET /login returns 404 in headless mode', async () => {
+        const app = expressLib();
+        app.use('/auth/ui', buildUiRouter({ authConfig: headlessAuthConfig }));
+
+        const res = await requestLib(app).get('/auth/ui/login');
+
+        expect(res.status).toBe(404);
+    });
+
+    it('GET /login returns HTML in normal (non-headless) mode — not a 404', async () => {
+        const app = expressLib();
+        app.use('/auth/ui', buildUiRouter({ authConfig: fullAuthConfig }));
+
+        const res = await requestLib(app).get('/auth/ui/login');
+
+        // The response should be 200 (HTML served) — verify it's NOT a headless 404
+        expect(res.status).toBe(200);
+        expect(res.headers['content-type']).toMatch(/text\/html/);
+    });
+
+    it('GET /auth.js is accessible in headless mode (static asset)', async () => {
+        const app = expressLib();
+        app.use('/auth/ui', buildUiRouter({ authConfig: headlessAuthConfig }));
+
+        const res = await requestLib(app).get('/auth/ui/auth.js');
+
+        expect([200, 304]).toContain(res.status);
+    });
+});

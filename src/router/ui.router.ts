@@ -140,8 +140,22 @@ export function buildUiRouter(options: UiRouterOptions): Router {
     // 1. Configuration endpoint for the UI (still available for dynamic fetching)
     router.get('/config', async (req: Request, res: Response) => {
         const config = await getUiConfig(req.baseUrl);
+        // Include headless flag so auth.js can auto-configure itself
+        (config as any).headless = !!(authConfig.ui?.headless);
         res.json(config);
     });
+
+    // In headless mode the HTML pages are not served (the hosting SPA provides
+    // its own login UI). We still serve /config and static assets (auth.js, CSS)
+    // so SPAs can load auth.js via <script> and use the fetch interceptor.
+    if (authConfig.ui?.headless) {
+        // Serve static assets (JS, CSS) — needed for the <script> tag integration
+        router.use('/', expressStatic(uiAssetsDir, {
+            maxAge: 0,
+            index: false,
+        }));
+        return router;
+    }
 
     // 2. Serve custom uploaded assets (e.g. logo, background images)
     if (uploadDir) {

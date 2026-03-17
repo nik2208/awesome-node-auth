@@ -155,6 +155,27 @@
         return response;
     };
 
+    // --- HEADLESS MODE HELPER ---
+    /**
+     * Auto-installs no-op lifecycle handlers when the server is running in
+     * headless UI mode (authConfig.ui.headless === true).
+     *
+     * In headless mode the backend does not serve login/register HTML pages — a
+     * remote SPA (e.g. a Docusaurus wiki) loads auth.js via a <script> tag and
+     * handles authentication in its own UI.  Without this guard, auth.js would
+     * redirect window.location to its own (missing) login page whenever the session
+     * expires or a refresh fails, breaking the SPA navigation entirely.
+     *
+     * The function is idempotent: if the caller has already registered a custom
+     * handler it is left untouched (explicit beats implicit).
+     */
+    function _applyHeadlessIfNeeded() {
+        if (!UI_CONFIG.headless) return;
+        if (!_overrides.onSessionExpired) _overrides.onSessionExpired = function () { };
+        if (!_overrides.onRefreshFail)    _overrides.onRefreshFail    = function () { };
+        if (!_overrides.onLogout)         _overrides.onLogout         = function () { };
+    }
+
     // --- INTERNAL AUTH SERVICE (pagine statiche della libreria) ---
     window.AuthService = {
         config: UI_CONFIG,
@@ -177,6 +198,11 @@
 
                 this.config = UI_CONFIG;
                 window.AwesomeNodeAuth.config = UI_CONFIG;
+
+                // Headless mode: the server reported that HTML pages are not served
+                // (a remote SPA is hosting the login UI).  Auto-install no-op lifecycle
+                // handlers so auth.js never redirects window.location away from the SPA.
+                _applyHeadlessIfNeeded();
             } catch (e) { console.warn('[AwesomeNodeAuth] Failed to load UI config', e); }
 
             // Theme is mostly handled via SSR HTML injection now, but we keep this 
@@ -276,6 +302,11 @@
          * @param {string} [options.apiPrefix]        - Base path del backend. Default: derivato dal pathname
          * @param {string} [options.loginUrl]         - URL pagina login. Default: {apiPrefix}/ui/login
          * @param {string} [options.homeUrl]          - URL home dopo login. Default: '/'
+         * @param {boolean} [options.headless]        - Headless mode: installs no-op onSessionExpired /
+         *                                              onLogout / onRefreshFail handlers immediately so
+         *                                              auth.js never redirects window.location. Useful
+         *                                              when loading auth.js from a remote SPA (e.g.
+         *                                              Docusaurus) that manages its own navigation.
          * @param {Function} [options.login]          - Override metodo login
          * @param {Function} [options.logout]         - Override metodo logout
          * @param {Function} [options.register]       - Override metodo register
@@ -303,7 +334,7 @@
          */
         init(options = {}) {
             const {
-                apiPrefix, loginUrl, homeUrl, siteName,
+                apiPrefix, loginUrl, homeUrl, siteName, headless,
                 onLogout, onSessionExpired, onRefreshSuccess, onRefreshFail,
                 ...methodOverrides
             } = options;
@@ -313,6 +344,8 @@
             if (loginUrl) UI_CONFIG.loginUrl = loginUrl;
             if (homeUrl) UI_CONFIG.homeUrl = homeUrl;
             if (siteName) UI_CONFIG.siteName = siteName;
+            // headless: true → mark config immediately so _applyHeadlessIfNeeded() fires
+            if (headless) UI_CONFIG.headless = true;
             this.config = UI_CONFIG;
             if (window.AuthService) window.AuthService.config = UI_CONFIG;
 
@@ -337,12 +370,33 @@
                     _overrides[method] = methodOverrides[method];
                 }
             });
+
+            // Apply headless no-op handlers if the config reports headless mode.
+            // This covers the case where init() is called from a Docusaurus <head>
+            // before AuthService.init() has had a chance to fetch /ui/config.
+            _applyHeadlessIfNeeded();
         },
 
         // --- STATE ---
         isAuthenticated: () => isAuthenticated,
         isInitialized: () => isInitialized,
         getUser: () => currentUser,
+
+        // --- REFRESH ---
+
+        /**
+         * Trigger a token refresh using the shared in-flight singleton.
+         * Safe to call concurrently — multiple callers receive the same Promise.
+         * Exposed so that external scripts (e.g. Docusaurus wiki components) can
+         * delegate their own refresh calls here instead of duplicating the logic,
+         * ensuring a single HTTP request is made even across module boundaries.
+         *
+         * @returns {Promise<boolean>} true if the refresh succeeded, false otherwise
+         */
+        async refresh() {
+            const result = await refreshToken().catch(() => null);
+            return !!(result && result.success);
+        },
 
         // --- SESSION ---
 
