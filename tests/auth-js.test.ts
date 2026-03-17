@@ -922,7 +922,8 @@ describe('fetch interceptor — CSRF', () => {
 
         fetchMock.mockResolvedValueOnce(fakeResponse({ data: 'ok' }));
 
-        await fetch('/api/data');
+        // CSRF headers are only injected for auth backend requests
+        await fetch('/auth/me');
 
         const [, opts] = fetchMock.mock.calls[0];
         expect(opts.headers['X-CSRF-Token']).toBe('test-csrf-value');
@@ -938,18 +939,44 @@ describe('fetch interceptor — CSRF', () => {
 
         fetchMock.mockResolvedValueOnce(fakeResponse({ data: 'ok' }));
 
-        await fetch('/api/data');
+        await fetch('/auth/me');
 
         const [, opts] = fetchMock.mock.calls[0];
         expect(opts.headers?.['X-CSRF-Token']).toBeUndefined();
     });
 
-    it('adds credentials: include when not explicitly set', async () => {
+    it('adds credentials: include on auth backend requests', async () => {
         fetchMock.mockResolvedValueOnce(fakeResponse({ data: 'ok' }));
 
-        await fetch('/api/data');
+        await fetch('/auth/me');
 
         const [, opts] = fetchMock.mock.calls[0];
+        expect(opts.credentials).toBe('include');
+    });
+
+    it('does NOT add credentials: include on cross-origin third-party API requests', async () => {
+        // Third-party APIs (e.g. LiteLLM, OpenAI, Stripe) return
+        // Access-Control-Allow-Origin: * which browsers block if the request
+        // includes credentials. The interceptor must leave them untouched.
+        fetchMock.mockResolvedValueOnce(fakeResponse({ data: 'ok' }));
+
+        await fetch('https://litellm.external.com/v1/chat/completions');
+
+        const [, opts] = fetchMock.mock.calls[0];
+        // credentials must remain unset for cross-origin third-party requests
+        expect(opts.credentials).toBeUndefined();
+    });
+
+    it('adds credentials: include on same-origin non-auth-prefix requests (e.g. /mcp on the auth server)', async () => {
+        // When the SPA and auth backend share the same origin, any request to
+        // that origin should receive credentials — including /mcp or other
+        // non-/auth-prefixed routes on the same server.
+        fetchMock.mockResolvedValueOnce(fakeResponse({ data: 'ok' }));
+
+        await fetch('/mcp/tool');
+
+        const [, opts] = fetchMock.mock.calls[0];
+        // same origin as apiPrefix → gets credentials
         expect(opts.credentials).toBe('include');
     });
 
@@ -981,6 +1008,25 @@ describe('fetch interceptor — auto-refresh', () => {
         await fetch('/api/protected');
 
         // 3 calls: original + refresh + retry
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('retries after refresh when backend returns no explicit success field (lenient check)', async () => {
+        // Some backends return { accessToken: "..." } without an explicit success field.
+        // The interceptor must treat any truthy response without success:false as a success.
+        fetchMock
+            .mockResolvedValueOnce(fakeResponse({ error: 'Unauthorized' }, 401))
+            .mockResolvedValueOnce(fakeResponse({ accessToken: 'new-token' }))  // no success field
+            .mockResolvedValueOnce(fakeResponse({ data: 'ok' }));
+
+        Object.defineProperty(window, 'location', {
+            writable: true,
+            configurable: true,
+            value: { pathname: '/dashboard', href: 'http://localhost/dashboard', set href(v) {} },
+        });
+
+        await fetch('/api/protected');
+
         expect(fetchMock).toHaveBeenCalledTimes(3);
     });
 

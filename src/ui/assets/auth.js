@@ -104,21 +104,47 @@
     window.fetch = async function (input, init = {}) {
         const url = typeof input === 'string' ? input : input.url;
 
-        if (!init.headers) init.headers = {};
-        if (init.headers instanceof Headers) {
-            const token = getCookie('__Host-csrf-token') || getCookie('__Secure-csrf-token') || getCookie('csrf-token');
-            if (token) init.headers.set('X-CSRF-Token', token);
-        } else {
-            init.headers = addCsrfHeader(init.headers);
+        // Derive the auth backend origin so that every request to the same
+        // domain as the auth server gets credentials/CSRF headers — not just
+        // requests whose path starts with apiPrefix.  This covers routes like
+        // /mcp on the same host as /auth (cross-domain headless deployments).
+        //
+        // We use window.location.href as the base for resolving relative URLs.
+        // Try/catch guards against malformed URLs; on failure both origins stay
+        // null and only the isAuthEndpoint() path-based fallback is used.
+        let backendOrigin = null;
+        let requestOrigin = null;
+        try {
+            const pageBase = window.location?.href || '';
+            backendOrigin = UI_CONFIG.apiPrefix.startsWith('http')
+                ? new URL(UI_CONFIG.apiPrefix).origin
+                : new URL(pageBase).origin;
+            requestOrigin = new URL(url, pageBase).origin;
+        } catch (_) { /* malformed URL — isAuthEndpoint() below handles known endpoints */ }
+
+        const isBackendRequest = backendOrigin !== null && backendOrigin === requestOrigin;
+        const isAuthRequest = isBackendRequest || isAuthEndpoint(url);
+
+        if (isAuthRequest) {
+            if (!init.headers) init.headers = {};
+            if (init.headers instanceof Headers) {
+                const token = getCookie('__Host-csrf-token') || getCookie('__Secure-csrf-token') || getCookie('csrf-token');
+                if (token) init.headers.set('X-CSRF-Token', token);
+            } else {
+                init.headers = addCsrfHeader(init.headers);
+            }
+            init.credentials = init.credentials || 'include';
         }
-        init.credentials = init.credentials || 'include';
 
         let response = await originalFetch(input, init);
 
         if ((response.status === 401 || response.status === 403) && !isAuthEndpoint(url)) {
             try {
                 const refreshResult = await refreshToken();
-                if (refreshResult && refreshResult.success) {
+                // Use a lenient check that accepts both { success: true } and
+                // other truthy payloads (e.g. { accessToken: "..." }) that the
+                // backend may return without an explicit `success` field.
+                if (refreshResult && refreshResult.success !== false) {
                     if (_overrides.onRefreshSuccess) _overrides.onRefreshSuccess(refreshResult);
                     if (!(init.headers instanceof Headers)) {
                         init.headers = addCsrfHeader(init.headers);
@@ -395,7 +421,8 @@
          */
         async refresh() {
             const result = await refreshToken().catch(() => null);
-            return !!(result && result.success);
+            // Succeeds if result.success is explicitly true OR if result is simply an object (e.g. {accessToken: "..."})
+            return !!(result && (result.success !== false));
         },
 
         // --- SESSION ---
