@@ -66,6 +66,8 @@ export class TokenService {
       const opts = { ...commonOpts, ...extraOpts };
       if (finalName.startsWith('__Host-')) {
         delete opts.domain;
+        opts.path = '/'; // __Host- requires path=/
+        opts.secure = true; // __Host- requires Secure
       } else {
         opts.domain = config.cookieOptions?.domain;
       }
@@ -101,6 +103,8 @@ export class TokenService {
     };
     if (name.startsWith('__Host-')) {
       delete opts.domain;
+      opts.path = '/'; // __Host- requires path=/
+      opts.secure = true; // __Host- requires Secure
     } else {
       opts.domain = config.cookieOptions?.domain;
     }
