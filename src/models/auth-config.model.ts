@@ -270,4 +270,19 @@ export interface AuthConfig {
      */
     cardBg?: string;
   };
+  /**
+   * Session management configuration.
+   */
+  session?: {
+    /**
+     * Controls how strictly the library verifies session validity against the `sessionStore`.
+     *
+     * - `allcalls`: Verify the session on every single request. Maximum security, requires a low-latency store (Redis).
+     * - `refresh`: Verify the session only during token refresh. High performance with good security.
+     * - `none`: Sessions are created and tracked in the store but never verified during requests.
+     *
+     * @default 'refresh'
+     */
+    checkOn?: 'allcalls' | 'refresh' | 'none';
+  };
 }

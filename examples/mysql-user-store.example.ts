@@ -60,6 +60,7 @@ interface DbUser {
   account_link_token_expiry: Date | null;
   account_link_pending_email: string | null;
   account_link_pending_provider: string | null;
+  
 }
 
 // ---- Mapper ---------------------------------------------------------------
@@ -360,6 +361,10 @@ export class MySqlUserStore implements IUserStore {
 
   async deleteUser(userId: string): Promise<void> {
     await this.pool.execute('DELETE FROM users WHERE id = ?', [userId]);
+  }
+
+  async updateLastLogin(userId: string): Promise<void> {
+    await this.pool.execute('UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [userId]); 
   }
 }
 

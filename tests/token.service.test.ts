@@ -199,6 +199,31 @@ describe('TokenService', () => {
       expect(res.cookieOptions['__Host-refreshToken']?.domain).toBeUndefined();
     });
 
+    it('__Host- refreshToken cookie has path=/ (browser spec), not the restricted refresh path', () => {
+      // The __Host- cookie prefix (RFC 6265bis) REQUIRES Path=/. If the cookie is
+      // set with any other path, browsers silently reject it. The TokenService
+      // therefore overrides the computed refreshTokenPath to '/' whenever the
+      // finalised cookie name starts with '__Host-'.
+      const secureConfig: AuthConfig = { ...config, cookieOptions: { secure: true } };
+      const pair = service.generateTokenPair({ sub: '1', email: 'a@a.com' }, secureConfig);
+      const res = createResponse();
+      service.setTokenCookies(res as any, pair, secureConfig);
+      expect(res.cookies['__Host-refreshToken']).toBeDefined();
+      expect(res.cookieOptions['__Host-refreshToken']?.path).toBe('/');
+      expect(res.cookieOptions['__Host-refreshToken']?.secure).toBe(true);
+    });
+
+    it('clearTokenCookies clears __Host-refreshToken with path=/ (spec compliance)', () => {
+      // Clearing a cookie requires the exact same Name+Path+Domain that was used
+      // when setting it. Because __Host- forces path=/, clearTokenCookies must
+      // also use path=/ — not the restricted refresh path — for the __Host- variant.
+      const secureConfig: AuthConfig = { ...config, cookieOptions: { secure: true } };
+      const res = createResponse();
+      service.clearTokenCookies(res as any, secureConfig);
+      expect(res.clearedCookies).toContain('__Host-refreshToken');
+      expect(res.clearedCookieOptions['__Host-refreshToken']?.path).toBe('/');
+    });
+
     it('applies __Secure- prefix when secure is true and path is not /', () => {
       const secureConfig: AuthConfig = { ...config, cookieOptions: { secure: true, path: '/api' } };
       const pair = service.generateTokenPair({ sub: '1', email: 'a@a.com' }, secureConfig);

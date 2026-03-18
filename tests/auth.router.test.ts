@@ -5,6 +5,7 @@ import { createAuthRouter } from '../src/router/auth.router';
 import { IUserStore } from '../src/interfaces/user-store.interface';
 import { BaseUser } from '../src/models/user.model';
 import { AuthConfig } from '../src/models/auth-config.model';
+import { SessionInfo } from '../src/models/session.model';
 import { PasswordService } from '../src/services/password.service';
 import { TokenService } from '../src/services/token.service';
 import { TOTP, NobleCryptoPlugin, ScureBase32Plugin } from 'otplib';
@@ -1066,5 +1067,126 @@ describe('CSRF auto-initialization middleware', () => {
     const setCookieHeader = res.headers['set-cookie'] as string[] | string | undefined;
     const cookies = Array.isArray(setCookieHeader) ? setCookieHeader : setCookieHeader ? [setCookieHeader] : [];
     expect(cookies.some((c: string) => c.startsWith('csrf-token='))).toBe(false);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Session Management Integration Tests
+// ────────────────────────────────────────────────────────────────────────────
+describe('Session Management', () => {
+  const sessionConfig: AuthConfig = {
+    accessTokenSecret: 'test-access-secret-very-long-and-secure',
+    refreshTokenSecret: 'test-refresh-secret-very-long-and-secure',
+    accessTokenExpiresIn: '15m',
+    refreshTokenExpiresIn: '7d',
+    session: { checkOn: 'refresh' },
+  };
+
+  function makeSessionStore() {
+    const sessions = new Map<string, SessionInfo>();
+    return {
+      sessions,
+      createSession: vi.fn((info: Omit<SessionInfo, 'sessionHandle'>) => {
+        const handle = `test-handle-${Math.random().toString(36).slice(2)}`;
+        const s: SessionInfo = { sessionHandle: handle, ...info };
+        sessions.set(handle, s);
+        return Promise.resolve(s);
+      }),
+      getSession: vi.fn((handle: string) => Promise.resolve(sessions.get(handle) ?? null)),
+      getSessionsForUser: vi.fn((userId: string) => Promise.resolve([...sessions.values()].filter(s => s.userId === userId))),
+      updateSessionLastActive: vi.fn().mockResolvedValue(undefined),
+      revokeSession: vi.fn((handle: string) => { sessions.delete(handle); return Promise.resolve(); }),
+      revokeAllSessionsForUser: vi.fn(),
+    };
+  }
+
+  let sessionStore: ReturnType<typeof makeSessionStore>;
+  let sessionUsers: Map<string, BaseUser>;
+  let app: express.Application;
+
+  beforeAll(async () => {
+    const hash = await new PasswordService().hash('pass');
+    sessionUsers = new Map([['u1', { id: 'u1', email: 's@test.com', password: hash }]]);
+  });
+
+  beforeEach(() => {
+    sessionStore = makeSessionStore();
+    const store: IUserStore = {
+      findByEmail: vi.fn((email: string) => Promise.resolve([...sessionUsers.values()].find(u => u.email === email) ?? null)),
+      findById: vi.fn((id: string) => Promise.resolve(sessionUsers.get(id) ?? null)),
+      create: vi.fn(),
+      updateRefreshToken: vi.fn((id, token, expiry) => {
+        const u = sessionUsers.get(id);
+        if (u) { u.refreshToken = token; u.refreshTokenExpiry = expiry; }
+        return Promise.resolve();
+      }),
+      updateLastLogin: vi.fn().mockResolvedValue(undefined),
+      updateResetToken: vi.fn(),
+      updatePassword: vi.fn(),
+      updateTotpSecret: vi.fn(),
+      updateMagicLinkToken: vi.fn(),
+      updateSmsCode: vi.fn(),
+    };
+    app = express();
+    app.use(express.json());
+    app.use('/auth', createAuthRouter(store, sessionConfig, { sessionStore: sessionStore as any }));
+  });
+
+  it('login creates a new session in the store', async () => {
+    const res = await request(app).post('/auth/login').send({ email: 's@test.com', password: 'pass' });
+    expect(res.status).toBe(200);
+    expect(sessionStore.createSession).toHaveBeenCalledOnce();
+    expect(sessionStore.sessions.size).toBe(1);
+  });
+
+  it('login embeds sid in the access token', async () => {
+    const res = await request(app).post('/auth/login').send({ email: 's@test.com', password: 'pass' });
+    expect(res.status).toBe(200);
+    const cookies = (res.headers['set-cookie'] as string[]) ?? [];
+    const atCookie = cookies.find(c => c.startsWith('accessToken='));
+    expect(atCookie).toBeDefined();
+    const token = atCookie!.split(';')[0].split('=').slice(1).join('=');
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
+    expect(payload.sid).toBeDefined();
+  });
+
+  it('logout revokes the session in the store', async () => {
+    await request(app).post('/auth/login').send({ email: 's@test.com', password: 'pass' });
+    const handle = [...sessionStore.sessions.keys()][0];
+    const loginTokens = new TokenService().generateTokenPair({ sub: 'u1', email: 's@test.com', sid: handle }, sessionConfig);
+    await request(app).post('/auth/logout').set('Cookie', `accessToken=${loginTokens.accessToken}`);
+    expect(sessionStore.revokeSession).toHaveBeenCalledWith(handle);
+    expect(sessionStore.sessions.has(handle)).toBe(false);
+  });
+
+  it('refresh rejects when session has been revoked (checkOn=refresh)', async () => {
+    const ts = new TokenService();
+    const handle = 'old-handle';
+    // Simulate a valid refresh token but revoked session
+    const tokens = ts.generateTokenPair({ sub: 'u1', email: 's@test.com', sid: handle }, sessionConfig);
+    (sessionUsers.get('u1') as BaseUser).refreshToken = tokens.refreshToken;
+    // Session does NOT exist in store — revoked
+    const res = await request(app).post('/auth/refresh').set('Cookie', `refreshToken=${tokens.refreshToken}`);
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe('SESSION_REVOKED');
+  });
+
+  it('refresh rotates the session (revokes old, creates new)', async () => {
+    // Login to get an initial session
+    await request(app).post('/auth/login').send({ email: 's@test.com', password: 'pass' });
+    const oldHandle = [...sessionStore.sessions.keys()][0];
+    const user = sessionUsers.get('u1')!;
+    const oldRefreshToken = user.refreshToken!;
+    expect(sessionStore.sessions.size).toBe(1);
+
+    // Refresh
+    const res = await request(app).post('/auth/refresh').set('Cookie', `refreshToken=${oldRefreshToken}`);
+    expect(res.status).toBe(200);
+
+    // Old session is gone, new one was created
+    expect(sessionStore.sessions.has(oldHandle)).toBe(false);
+    expect(sessionStore.sessions.size).toBe(1);
+    const newHandle = [...sessionStore.sessions.keys()][0];
+    expect(newHandle).not.toBe(oldHandle);
   });
 });

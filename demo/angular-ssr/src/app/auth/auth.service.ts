@@ -10,6 +10,17 @@ export interface AuthUser {
   [key: string]: unknown;
 }
 
+export interface SessionInfo {
+  sessionHandle: string;
+  userId: string;
+  userAgent?: string;
+  ipAddress?: string;
+  createdAt: Date | string;
+  lastActiveAt?: Date | string;
+  expiresAt?: Date | string;
+  [key: string]: unknown;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
@@ -69,5 +80,19 @@ export class AuthService {
     return this.http
       .get<AuthUser>('/auth/me', { withCredentials: true })
       .pipe(tap(user => this._user$.next(user)));
+  }
+
+  // ── Active sessions (device management) ───────────────────────────────────
+  // Requires ISessionStore on the server with getSessionsForUser implemented.
+
+  getActiveSessions(): Observable<SessionInfo[]> {
+    return this.http
+      .get<{ sessions: SessionInfo[] }>('/auth/sessions', { withCredentials: true })
+      .pipe(map(res => res.sessions));
+  }
+
+  revokeSession(sessionHandle: string): Observable<void> {
+    return this.http
+      .delete<void>(`/auth/sessions/${encodeURIComponent(sessionHandle)}`, { withCredentials: true });
   }
 }

@@ -8,10 +8,12 @@ import { GoogleStrategy } from './strategies/oauth/google.strategy';
 import { GithubStrategy } from './strategies/oauth/github.strategy';
 import { createAuthMiddleware } from './middleware/auth.middleware';
 import { createAuthRouter, RouterOptions } from './router/auth.router';
+import { ISessionStore } from './interfaces/session-store.interface';
 
 export class AuthConfigurator {
   private readonly _tokenService: TokenService;
   private readonly _passwordService: PasswordService;
+  private _sessionStore?: ISessionStore;
 
   constructor(
     private readonly config: AuthConfig,
@@ -21,11 +23,14 @@ export class AuthConfigurator {
     this._passwordService = new PasswordService();
   }
 
-  middleware(): RequestHandler {
-    return createAuthMiddleware(this.config);
+  middleware(options?: { sessionStore?: ISessionStore }): RequestHandler {
+    return createAuthMiddleware(this.config, options?.sessionStore || this._sessionStore);
   }
 
   router(options?: RouterOptions): Router {
+    if (options?.sessionStore) {
+      this._sessionStore = options.sessionStore;
+    }
     return createAuthRouter(this.userStore, this.config, options);
   }
 

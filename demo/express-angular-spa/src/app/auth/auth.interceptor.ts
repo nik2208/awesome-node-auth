@@ -31,6 +31,13 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       if (err.status !== 401 || req.url.includes('/auth/refresh')) {
         return throwError(() => err);
       }
+      // SESSION_REVOKED is a permanent failure — the server has killed the
+      // session, so attempting a refresh would only waste a round-trip and
+      // could cause a loop.  Force an immediate local logout instead.
+      if ((err.error as { code?: string } | null)?.code === 'SESSION_REVOKED') {
+        auth.logout().subscribe();
+        return throwError(() => err);
+      }
       return handle401(modified, next, auth);
     }),
   );

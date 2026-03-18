@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createAuthMiddleware } from '../src/middleware/auth.middleware';
 import { TokenService } from '../src/services/token.service';
 import { AuthConfig } from '../src/models/auth-config.model';
+import { SessionInfo } from '../src/models/session.model';
 import { createRequest, createResponse } from './test-helpers';
 
 const config: AuthConfig = {
@@ -134,5 +135,82 @@ describe('createAuthMiddleware CSRF validation', () => {
     let nextCalled = false;
     middleware(req as any, res as any, () => { nextCalled = true; });
     expect(nextCalled).toBe(true);
+  });
+});
+
+describe('createAuthMiddleware — session store integration', () => {
+  function makeSessionStore(session: SessionInfo | null) {
+    return {
+      createSession: vi.fn(),
+      getSession: vi.fn().mockResolvedValue(session),
+      getSessionsForUser: vi.fn(),
+      updateSessionLastActive: vi.fn().mockResolvedValue(undefined),
+      revokeSession: vi.fn(),
+      revokeAllSessionsForUser: vi.fn(),
+    };
+  }
+
+  it('allows request when checkOn=allcalls and session exists', async () => {
+    const sessionStore = makeSessionStore({ sessionHandle: 'sid-1', userId: '1', createdAt: new Date(), expiresAt: new Date(Date.now() + 3600_000) });
+    const cfg: AuthConfig = { ...config, session: { checkOn: 'allcalls' } };
+    const middleware = createAuthMiddleware(cfg, sessionStore as any);
+    const tokens = tokenService.generateTokenPair({ sub: '1', email: 'a@a.com', sid: 'sid-1' }, cfg);
+    const req = createRequest({ cookies: { accessToken: tokens.accessToken } });
+    const res = createResponse();
+    let nextCalled = false;
+    await (middleware as any)(req as any, res as any, () => { nextCalled = true; });
+    expect(nextCalled).toBe(true);
+    expect(sessionStore.getSession).toHaveBeenCalledWith('sid-1');
+  });
+
+  it('returns 401 when checkOn=allcalls and session is revoked', async () => {
+    const sessionStore = makeSessionStore(null); // session gone
+    const cfg: AuthConfig = { ...config, session: { checkOn: 'allcalls' } };
+    const middleware = createAuthMiddleware(cfg, sessionStore as any);
+    const tokens = tokenService.generateTokenPair({ sub: '1', email: 'a@a.com', sid: 'sid-1' }, cfg);
+    const req = createRequest({ cookies: { accessToken: tokens.accessToken } });
+    const res = createResponse();
+    let nextCalled = false;
+    await (middleware as any)(req as any, res as any, () => { nextCalled = true; });
+    expect(nextCalled).toBe(false);
+    expect(res.statusCode).toBe(401);
+    expect((res.jsonBody as any).code).toBe('SESSION_REVOKED');
+  });
+
+  it('skips getSession when checkOn=refresh (stateless fast-path)', async () => {
+    const sessionStore = makeSessionStore(null); // would reject if called
+    const cfg: AuthConfig = { ...config, session: { checkOn: 'refresh' } };
+    const middleware = createAuthMiddleware(cfg, sessionStore as any);
+    const tokens = tokenService.generateTokenPair({ sub: '1', email: 'a@a.com', sid: 'sid-1' }, cfg);
+    const req = createRequest({ cookies: { accessToken: tokens.accessToken } });
+    const res = createResponse();
+    let nextCalled = false;
+    await (middleware as any)(req as any, res as any, () => { nextCalled = true; });
+    expect(nextCalled).toBe(true);
+    expect(sessionStore.getSession).not.toHaveBeenCalled();
+  });
+
+  it('updates lastActiveAt on every authenticated request', async () => {
+    const sessionStore = makeSessionStore({ sessionHandle: 'sid-1', userId: '1', createdAt: new Date(), expiresAt: new Date(Date.now() + 3600_000) });
+    const cfg: AuthConfig = { ...config, session: { checkOn: 'allcalls' } };
+    const middleware = createAuthMiddleware(cfg, sessionStore as any);
+    const tokens = tokenService.generateTokenPair({ sub: '1', email: 'a@a.com', sid: 'sid-1' }, cfg);
+    const req = createRequest({ cookies: { accessToken: tokens.accessToken } });
+    const res = createResponse();
+    await (middleware as any)(req as any, res as any, () => {});
+    expect(sessionStore.updateSessionLastActive).toHaveBeenCalledWith('sid-1');
+  });
+
+  it('updates lastActiveAt even in refresh mode (no blocking check)', async () => {
+    const sessionStore = makeSessionStore(null);
+    const cfg: AuthConfig = { ...config, session: { checkOn: 'refresh' } };
+    const middleware = createAuthMiddleware(cfg, sessionStore as any);
+    const tokens = tokenService.generateTokenPair({ sub: '1', email: 'a@a.com', sid: 'sid-1' }, cfg);
+    const req = createRequest({ cookies: { accessToken: tokens.accessToken } });
+    const res = createResponse();
+    let nextCalled = false;
+    await (middleware as any)(req as any, res as any, () => { nextCalled = true; });
+    expect(nextCalled).toBe(true);
+    expect(sessionStore.updateSessionLastActive).toHaveBeenCalledWith('sid-1');
   });
 });

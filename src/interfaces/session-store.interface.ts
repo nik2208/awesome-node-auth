@@ -68,8 +68,10 @@ export interface ISessionStore {
 
   /**
    * Invalidate (delete) a single session.
-   * The associated JWT will still be technically valid until it expires, so
-   * you should also call `tokenService.clearTokenCookies()` on the response.
+   *
+   * If `AuthConfig.session.checkOn` is set to `'allcalls'`, access is revoked
+   * immediately. If set to `'refresh'`, access is revoked at the next token
+   * rotation.
    */
   revokeSession(sessionHandle: string): Promise<void>;
 

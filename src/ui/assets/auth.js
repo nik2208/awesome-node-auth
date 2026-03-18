@@ -139,20 +139,33 @@
         let response = await originalFetch(input, init);
 
         if ((response.status === 401 || response.status === 403) && !isAuthEndpoint(url)) {
-            try {
-                const refreshResult = await refreshToken();
-                // Use a lenient check that accepts both { success: true } and
-                // other truthy payloads (e.g. { accessToken: "..." }) that the
-                // backend may return without an explicit `success` field.
-                if (refreshResult && refreshResult.success !== false) {
-                    if (_overrides.onRefreshSuccess) _overrides.onRefreshSuccess(refreshResult);
-                    if (!(init.headers instanceof Headers)) {
-                        init.headers = addCsrfHeader(init.headers);
+            // Peek at the response body to detect a permanent SESSION_REVOKED error.
+            // We must clone() before reading so the original response stays consumable.
+            let errBody = null;
+            try { errBody = await response.clone().json(); } catch (_) {}
+
+            // If the server already told us the session is permanently revoked,
+            // skip the refresh entirely — retrying would only loop forever.
+            const isRevoked = errBody && errBody.code === 'SESSION_REVOKED';
+
+            if (!isRevoked) {
+                try {
+                    const refreshResult = await refreshToken();
+                    // Guard against SESSION_REVOKED coming back from the refresh
+                    // endpoint (e.g. when checkOn:'refresh') — it has no `success`
+                    // field, so the old `!== false` check would incorrectly treat
+                    // it as a success and re-issue the original request, looping.
+                    const refreshRevoked = refreshResult && refreshResult.code === 'SESSION_REVOKED';
+                    if (!refreshRevoked && refreshResult && refreshResult.success !== false) {
+                        if (_overrides.onRefreshSuccess) _overrides.onRefreshSuccess(refreshResult);
+                        if (!(init.headers instanceof Headers)) {
+                            init.headers = addCsrfHeader(init.headers);
+                        }
+                        return originalFetch(input, init);
                     }
-                    return originalFetch(input, init);
+                } catch (e) {
+                    console.error('[AwesomeNodeAuth] Auto-refresh failed', e);
                 }
-            } catch (e) {
-                console.error('[AwesomeNodeAuth] Auto-refresh failed', e);
             }
 
             // Refresh fallito
@@ -421,6 +434,8 @@
          */
         async refresh() {
             const result = await refreshToken().catch(() => null);
+            // SESSION_REVOKED is a permanent failure — never treat it as success
+            if (result && result.code === 'SESSION_REVOKED') return false;
             // Succeeds if result.success is explicitly true OR if result is simply an object (e.g. {accessToken: "..."})
             return !!(result && (result.success !== false));
         },
@@ -429,6 +444,26 @@
 
         async checkSession() {
             return _checkSessionInternal();
+        },
+
+        /**
+         * Fetch all active sessions for the currently authenticated user.
+         * Requires ISessionStore on the server with getSessionsForUser implemented.
+         * @returns {Promise<{sessions: Array, error?: string}>}
+         */
+        async getActiveSessions() {
+            const data = await window.AuthService.apiCall('/sessions', 'GET');
+            return { sessions: data.sessions || [], error: data.error };
+        },
+
+        /**
+         * Revoke a specific session by its handle.
+         * @param {string} sessionHandle
+         * @returns {Promise<{success: boolean, error?: string}>}
+         */
+        async revokeSession(sessionHandle) {
+            const data = await window.AuthService.apiCall('/sessions/' + encodeURIComponent(sessionHandle), 'DELETE');
+            return { success: !!data.success, error: data.error };
         },
 
         async guardPage(customLoginUrl) {

@@ -345,6 +345,27 @@ function resolveOAuthRedirect(state: string | undefined, config: AuthConfig, all
 }
 
 /**
+ * Parse a JWT-style expiry string (e.g. '7d', '30d', '2h', '15m') to milliseconds.
+ * Falls back to 7 days when the value is absent or unparseable.
+ */
+function parseExpiryMs(expiry: string | undefined): number {
+  if (!expiry) return 7 * 24 * 60 * 60 * 1000;
+  const match = expiry.match(/^(\d+(?:\.\d+)?)\s*(ms|s|m|h|d|w)$/i);
+  if (!match) return 7 * 24 * 60 * 60 * 1000;
+  const value = parseFloat(match[1]);
+  const unit = match[2].toLowerCase();
+  const multipliers: Record<string, number> = {
+    ms: 1,
+    s: 1_000,
+    m: 60 * 1_000,
+    h: 60 * 60 * 1_000,
+    d: 24 * 60 * 60 * 1_000,
+    w: 7 * 24 * 60 * 60 * 1_000,
+  };
+  return value * (multipliers[unit] ?? multipliers['d']);
+}
+
+/**
  * Build the JWT payload for a user, merging any custom claims provided via
  * `config.buildTokenPayload`.
  */
@@ -375,6 +396,51 @@ function sendTokens(req: Request, res: Response, tokens: TokenPair, config: Auth
   } else {
     tokenService.setTokenCookies(res, tokens, config);
     res.json({ success: true });
+  }
+}
+
+/**
+ * Enhanced token issuance that creates a stateful session when a sessionStore is configured.
+ * Pass `oldSid` to atomically rotate the session (revoke old, create new) on token refresh.
+ */
+async function issueTokens(
+  req: Request,
+  res: Response,
+  user: BaseUser,
+  config: AuthConfig,
+  options: RouterOptions,
+  userStore: IUserStore,
+  redirectTo?: string,
+  oldSid?: string
+): Promise<void> {
+  const payload = buildPayload(user, config);
+  const refreshExpiryMs = parseExpiryMs(config.refreshTokenExpiresIn as string | undefined);
+
+  if (options.sessionStore) {
+    const session = await options.sessionStore.createSession({
+      userId: user.id,
+      userAgent: req.headers['user-agent'],
+      ipAddress: req.ip || req.socket.remoteAddress,
+      expiresAt: new Date(Date.now() + refreshExpiryMs),
+      createdAt: new Date(),
+    });
+    payload.sid = session.sessionHandle;
+
+    // Revoke the previous session now that the new one is live (token rotation)
+    if (oldSid) {
+      await options.sessionStore.revokeSession(oldSid).catch(() => {});
+    }
+  }
+
+  const tokens = tokenService.generateTokenPair(payload, config);
+  const refreshExpiry = new Date(Date.now() + refreshExpiryMs);
+  await userStore.updateRefreshToken(user.id, tokens.refreshToken, refreshExpiry);
+
+  if (redirectTo) {
+    tokenService.setTokenCookies(res, tokens, config);
+    res.redirect(redirectTo);
+  } else {
+    sendTokens(req, res, tokens, config);
   }
 }
 
@@ -464,14 +530,8 @@ export function createAuthRouter(
         return;
       }
 
-      const tokens = tokenService.generateTokenPair(
-        buildPayload(user, config),
-        config
-      );
-      const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       await userStore.updateLastLogin(user.id);
-      await userStore.updateRefreshToken(user.id, tokens.refreshToken, refreshExpiry);
-      sendTokens(req, res, tokens, config);
+      await issueTokens(req, res, user, config, options, userStore);
     } catch (err) {
       handleError(res, err);
     }
@@ -480,13 +540,18 @@ export function createAuthRouter(
   // POST /logout
   // We don't use the standard authMiddleware here because we want to clear cookies
   // even if the token is expired or invalid.
-  router.post('/logout', ...rl, (req: Request, res: Response, next: NextFunction) => {
+  router.post('/logout', ...rl, async (req: Request, res: Response, next: NextFunction) => {
     // Try to get the user from token, but don't block if it fails
     const token = tokenService.extractTokenFromCookie(req, 'accessToken');
     if (token) {
       try {
         const payload = tokenService.verifyAccessToken(token, config);
         req.user = payload;
+        
+        // Revoke stateful session
+        if (options.sessionStore && payload.sid) {
+          await options.sessionStore.revokeSession(payload.sid).catch(() => {});
+        }
       } catch (err) {
         // Token dead, but we proceed to clear it
       }
@@ -517,18 +582,24 @@ export function createAuthRouter(
         return;
       }
       const payload = tokenService.verifyRefreshToken(refreshToken, config);
+      
+      // Real-time Session Validation
+      const checkOn = config.session?.checkOn ?? 'refresh';
+      if (options.sessionStore && payload.sid && checkOn !== 'none') {
+        const session = await options.sessionStore.getSession(payload.sid);
+        if (!session) {
+          res.status(401).json({ error: 'Session has been revoked', code: 'SESSION_REVOKED' });
+          return;
+        }
+      }
+
       const user = await userStore.findById(payload.sub);
       if (!user || user.refreshToken !== refreshToken) {
         res.status(401).json({ error: 'Invalid refresh token' });
         return;
       }
-      const tokens = tokenService.generateTokenPair(
-        buildPayload(user, config),
-        config
-      );
-      const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      await userStore.updateRefreshToken(user.id, tokens.refreshToken, refreshExpiry);
-      sendTokens(req, res, tokens, config);
+      
+      await issueTokens(req, res, user, config, options, userStore, /* redirectTo */ undefined, payload.sid);
     } catch (err) {
       handleError(res, err);
     }
@@ -619,6 +690,36 @@ export function createAuthRouter(
       try {
         const deleted = await deleteExpiredSessions();
         res.json({ success: true, deleted });
+      } catch (err) {
+        handleError(res, err);
+      }
+    });
+  }
+
+  // User-facing session management endpoints (require sessionStore)
+  if (options.sessionStore) {
+    // GET /sessions — list the current user's active sessions
+    router.get('/sessions', ...rl, authMiddleware, async (req: Request, res: Response) => {
+      try {
+        const sessions = await options.sessionStore!.getSessionsForUser(req.user!.sub);
+        res.json({ sessions });
+      } catch (err) {
+        handleError(res, err);
+      }
+    });
+
+    // DELETE /sessions/:handle — revoke a specific session owned by the current user
+    router.delete('/sessions/:handle', ...rl, authMiddleware, async (req: Request, res: Response) => {
+      try {
+        const handle = decodeURIComponent(req.params['handle'] as string);
+        const session = await options.sessionStore!.getSession(handle);
+        // Ensure the session belongs to the authenticated user before revoking
+        if (!session || session.userId !== req.user!.sub) {
+          res.status(404).json({ error: 'Session not found' });
+          return;
+        }
+        await options.sessionStore!.revokeSession(handle);
+        res.json({ success: true });
       } catch (err) {
         handleError(res, err);
       }
@@ -722,13 +823,7 @@ export function createAuthRouter(
         res.status(401).json({ error: 'Invalid TOTP code' });
         return;
       }
-      const tokens = tokenService.generateTokenPair(
-        buildPayload(user, config),
-        config
-      );
-      const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      await userStore.updateRefreshToken(user.id, tokens.refreshToken, refreshExpiry);
-      sendTokens(req, res, tokens, config);
+      await issueTokens(req, res, user, config, options, userStore);
     } catch (err) {
       handleError(res, err);
     }
@@ -1009,10 +1104,7 @@ export function createAuthRouter(
           res.status(401).json({ error: 'Token mismatch', code: 'TOKEN_MISMATCH' });
           return;
         }
-        const tokens = tokenService.generateTokenPair(buildPayload(user, config), config);
-        const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-        await userStore.updateRefreshToken(user.id, tokens.refreshToken, refreshExpiry);
-        sendTokens(req, res, tokens, config);
+        await issueTokens(req, res, user, config, options, userStore);
         return;
       }
 
@@ -1022,13 +1114,7 @@ export function createAuthRouter(
       if (!user.isEmailVerified && userStore.updateEmailVerified) {
         await userStore.updateEmailVerified(user.id, true);
       }
-      const tokens = tokenService.generateTokenPair(
-        buildPayload(user, config),
-        config
-      );
-      const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      await userStore.updateRefreshToken(user.id, tokens.refreshToken, refreshExpiry);
-      sendTokens(req, res, tokens, config);
+      await issueTokens(req, res, user, config, options, userStore);
     } catch (err) {
       handleError(res, err);
     }
@@ -1149,13 +1235,7 @@ export function createAuthRouter(
         res.status(404).json({ error: 'User not found' });
         return;
       }
-      const tokens = tokenService.generateTokenPair(
-        buildPayload(user, config),
-        config
-      );
-      const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      await userStore.updateRefreshToken(user.id, tokens.refreshToken, refreshExpiry);
-      sendTokens(req, res, tokens, config);
+      await issueTokens(req, res, user, config, options, userStore);
     } catch (err) {
       handleError(res, err);
     }
@@ -1185,12 +1265,8 @@ export function createAuthRouter(
       res.redirect(`${redirectTo}/auth/2fa?tempToken=${encodeURIComponent(tempToken)}&methods=${encodeURIComponent(methods)}`);
       return;
     }
-    const tokens = tokenService.generateTokenPair(buildPayload(user, authConfig), authConfig);
-    const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await userStore.updateLastLogin(user.id);
-    await userStore.updateRefreshToken(user.id, tokens.refreshToken, refreshExpiry);
-    tokenService.setTokenCookies(res, tokens, authConfig);
-    res.redirect(redirectTo || '/');
+    await issueTokens(req, res, user, authConfig, options, userStore, redirectTo || '/');
   }
 
   // OAuth Google
@@ -1461,10 +1537,7 @@ export function createAuthRouter(
         });
         await userStore.updateAccountLinkToken(user.id, null, null, null, null);
         if (loginAfterLinking) {
-          const tokens = tokenService.generateTokenPair(buildPayload(user, config), config);
-          const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-          await userStore.updateRefreshToken(user.id, tokens.refreshToken, refreshExpiry);
-          sendTokens(req, res, tokens, config);
+          await issueTokens(req, res, user, config, options, userStore);
           return;
         }
         res.json({ success: true });
