@@ -111,7 +111,7 @@ Full configuration reference → [README.detailed.md § Configuration](./README.
 | **Full reference** | [README.detailed.md](./README.detailed.md) |
 | **Wiki / Guides** | [awesomenodeauth.com](https://awesomenodeauth.com) |
 | **Changelog** | [CHANGELOG.md](./CHANGELOG.md) |
-| **MCP server** | [mcp-server/README.md](./mcp-server/README.md) |
+| **MCP server** | [mcp-server/README.md](https://www.awesomenodeauth.com/docs/mcp-server/) |
 | **Demo apps** | [demo/](./demo) |
 | **Framework examples** | [examples/](./examples) |
 
@@ -119,4 +119,4 @@ Full configuration reference → [README.detailed.md § Configuration](./README.
 
 ## License
 
-[MIT](./LICENSE) · © 2024 nik2208 · [Sponsor ❤](https://github.com/sponsors/nik2208)
+[MIT](./LICENSE) · © 2026 nik2208 · [Sponsor ❤](https://github.com/sponsors/nik2208)

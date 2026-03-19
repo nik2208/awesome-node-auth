@@ -174,7 +174,7 @@ function buildAdminHtml(baseUrl: string, features: {
 </div>
 
 <!-- Main app -->
-<div id="app" style="display:flex">
+<div id="app">
   <div id="flash"></div>
   <header>
     <h1>&#128272; awesome-node-auth Admin</h1>

@@ -1,15 +1,16 @@
 /* awesome-node-auth admin panel stylesheet */
 * { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
 body { font-family: system-ui, -apple-system, sans-serif; background: #f0f2f5; color: #1a1a2e; }
 
 /* Login */
-#login { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+#login { display: flex; align-items: center; justify-content: center; min-height: 100%; }
 .login-card { background: white; padding: 2.5rem; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,.12); width: 400px; }
 .login-card h1 { font-size: 1.5rem; margin-bottom: .25rem; }
 .login-card p { color: #666; font-size: .875rem; margin-bottom: 1.5rem; }
 
 /* App */
-#app { display: none; min-height: 100vh; flex-direction: column; }
+#app { display: none; min-height: 100%; flex-direction: column; }
 header { background: #1a1a2e; color: white; padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; }
 header h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: .5px; }
 header span { font-size: .75rem; opacity: .6; }

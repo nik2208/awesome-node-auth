@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.5.1] — 2026-03-19
+
+### Fixed
+- Fixed admin ui height
+
+---
+
 ## [1.5.0] — 2026-03-18
 
 ### Added
