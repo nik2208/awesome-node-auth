@@ -672,7 +672,7 @@ export function createAuthRouter(
         if (config.email?.sendWelcome) {
           await config.email.sendWelcome(user.email, data);
         } else if (config.email?.mailer) {
-          const mailer = new MailerService(config.email.mailer);
+          const mailer = new MailerService(config.email.mailer, config.templateStore);
           const siteUrl = resolveSiteUrl(req, config, allowedOrigins);
           await mailer.sendWelcome(user.email, { loginUrl: `${siteUrl}/login` });
         }
@@ -740,7 +740,7 @@ export function createAuthRouter(
         if (config.email?.sendPasswordReset) {
           await config.email.sendPasswordReset(email, token, link, emailLang);
         } else if (config.email?.mailer) {
-          const mailer = new MailerService(config.email.mailer);
+          const mailer = new MailerService(config.email.mailer, config.templateStore);
           await mailer.sendPasswordReset(email, token, link, emailLang);
         }
       }
@@ -909,7 +909,7 @@ export function createAuthRouter(
       if (config.email?.sendVerificationEmail) {
         await config.email.sendVerificationEmail(user.email, token, link, emailLang);
       } else if (config.email?.mailer) {
-        const mailer = new MailerService(config.email.mailer);
+        const mailer = new MailerService(config.email.mailer, config.templateStore);
         await mailer.sendVerificationEmail(user.email, token, link, emailLang);
       }
       res.json({ success: true });
@@ -980,7 +980,7 @@ export function createAuthRouter(
       if (config.email?.sendVerificationEmail) {
         await config.email.sendVerificationEmail(newEmail, token, link, emailLang);
       } else if (config.email?.mailer) {
-        const mailer = new MailerService(config.email.mailer);
+        const mailer = new MailerService(config.email.mailer, config.templateStore);
         await mailer.sendVerificationEmail(newEmail, token, link, emailLang);
       }
       res.json({ success: true });
@@ -1014,7 +1014,7 @@ export function createAuthRouter(
       if (config.email?.sendEmailChanged) {
         await config.email.sendEmailChanged(oldEmail, newEmail);
       } else if (config.email?.mailer) {
-        const mailer = new MailerService(config.email.mailer);
+        const mailer = new MailerService(config.email.mailer, config.templateStore);
         await mailer.sendEmailChanged(oldEmail, newEmail);
       }
       res.json({ success: true });
@@ -1483,7 +1483,7 @@ export function createAuthRouter(
         if (config.email?.sendVerificationEmail) {
           await config.email.sendVerificationEmail(email, tokenCode, link, emailLang);
         } else if (config.email?.mailer) {
-          const mailer = new MailerService(config.email.mailer);
+          const mailer = new MailerService(config.email.mailer, config.templateStore);
           await mailer.sendVerificationEmail(email, tokenCode, link, emailLang);
         }
         res.json({ success: true });
@@ -1594,6 +1594,7 @@ export function createAuthRouter(
       uiAssetsDir: options.uiAssetsDir,
       uploadDir: options.uploadDir,
       settingsStore: options.settingsStore,
+      templateStore: config.templateStore,
       authConfig: config,
       routerOptions: options,
       apiPrefix: resolveApiPrefix(config, options),

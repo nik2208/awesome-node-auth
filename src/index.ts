@@ -11,6 +11,9 @@ export type { ISettingsStore, AuthSettings } from './interfaces/settings-store.i
 export type { ILinkedAccountsStore, LinkedAccount } from './interfaces/linked-accounts-store.interface';
 export type { IPendingLinkStore, IPendingLink } from './interfaces/pending-link-store.interface';
 export type { IApiKeyStore, ApiKeyAuditEntry } from './interfaces/api-key-store.interface';
+export type { ITemplateStore, MailTemplate, UiTranslation } from './interfaces/template-store.interface';
+
+export { MemoryTemplateStore } from './stores/memory-template.store';
 
 export type { BaseUser } from './models/user.model';
 export type { TokenPair, AccessTokenPayload } from './models/token.model';

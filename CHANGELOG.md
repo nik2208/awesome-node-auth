@@ -5,6 +5,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.6.0] — 2026-03-21
+
+### Added
+- **`ITemplateStore`** — optional interface for dynamic, per-language email templates and UI i18n, with a built-in `MemoryTemplateStore` in-memory implementation.
+- **Dynamic email templates** — `MailerService` now resolves templates through the store before falling back to the built-in en/it templates; supports `{{T.key}}` translation interpolation and `{{VAR}}` data interpolation in subject, HTML and plain-text bodies.
+- **UI i18n** — `buildUiRouter` accepts an optional `templateStore`; `auth.js` `applyTranslations()` patches `data-i18n` elements at runtime while keeping the original hardcoded text as a safe fallback when no translation is found.
+- **Admin "Email & UI" tab** — `createAdminRouter` activates a new template-editor tab (mail templates + UI translations) only when a `templateStore` is provided; REST endpoints `GET/POST /admin/api/templates/mail` and `GET/POST /admin/api/templates/ui`.
+
+### Changed
+- `AuthConfig.templateStore?: ITemplateStore` and `AdminOptions.templateStore?: ITemplateStore` added as optional fields (fully backward-compatible).
+- `MailerService` constructor now accepts an optional `templateStore` as a second argument.
+
+---
+
 ## [1.5.1] — 2026-03-19
 
 ### Fixed

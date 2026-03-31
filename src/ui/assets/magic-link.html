@@ -11,20 +11,20 @@
 <body>
     <div class="auth-container">
         <img src="" alt="Logo" class="logo hidden">
-        <h1 class="site-name">Awesome Node Auth</h1>
-        <h2>Magic Link</h2>
+        <h1 class="site-name" data-i18n="site_name">Awesome Node Auth</h1>
+        <h2 data-i18n="magic_link_title">Magic Link</h2>
 
         <div id="alert" class="alert hidden"></div>
 
         <form id="magic-link-form">
-            <p class="footer-links" style="margin-bottom: 20px; text-align: left;">
+            <p class="footer-links" style="margin-bottom: 20px; text-align: left;" data-i18n="magic_link_instruction">
                 Enter your email and we'll send you a magic link to sign in instantly.
             </p>
             <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email" required>
+                <label for="email" data-i18n="email_label">Email</label>
+                <input type="email" id="email" name="email" required data-i18n="email_placeholder">
             </div>
-            <button type="submit" id="submit-btn" data-feature="magicLink">Send Magic Link</button>
+            <button type="submit" id="submit-btn" data-feature="magicLink" data-i18n="send_magic_link_button">Send Magic Link</button>
         </form>
 
         <div id="success-message" class="hidden">

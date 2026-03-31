@@ -11,26 +11,26 @@
 <body>
     <div class="auth-container">
         <img src="" alt="Logo" class="logo hidden">
-        <h1 class="site-name">Awesome Node Auth</h1>
-        <h2>Login</h2>
+        <h1 class="site-name" data-i18n="site_name">Awesome Node Auth</h1>
+        <h2 data-i18n="login_title">Login</h2>
 
         <div id="alert" class="alert alert-error hidden"></div>
 
         <form id="login-form">
             <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email" required>
+                <label for="email" data-i18n="email_label">Email</label>
+                <input type="email" id="email" name="email" required data-i18n="email_placeholder">
             </div>
             <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
+                <label for="password" data-i18n="password_label">Password</label>
+                <input type="password" id="password" name="password" required data-i18n="password_placeholder">
             </div>
-            <button type="submit" id="submit-btn">Login</button>
+            <button type="submit" id="submit-btn" data-i18n="login_button">Login</button>
         </form>
 
         <div id="social-section" class="hidden">
             <div class="divider">
-                <span>Or continue with</span>
+                <span data-i18n="social_divider">Or continue with</span>
             </div>
             <div class="social-buttons">
                 <a href="../oauth/google" class="btn-social hidden" data-feature="google">
@@ -63,8 +63,8 @@
         </div>
 
         <div class="footer-links">
-            <p data-feature="forgot-password" class="hidden"><a href="forgot-password">Forgot password?</a></p>
-            <p data-feature="register" class="hidden">Don't have an account? <a href="register">Sign up</a></p>
+            <p data-feature="forgot-password" class="hidden"><a href="forgot-password" data-i18n="forgot_password_link">Forgot password?</a></p>
+            <p data-feature="register" class="hidden"><span data-i18n="no_account_text">Don't have an account?</span> <a href="register" data-i18n="signup_link">Sign up</a></p>
         </div>
 
         <script src="auth.js?v=2"></script>

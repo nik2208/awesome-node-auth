@@ -11,6 +11,7 @@ import { ISettingsStore, AuthSettings } from '../interfaces/settings-store.inter
 import { ILinkedAccountsStore } from '../interfaces/linked-accounts-store.interface';
 import { IApiKeyStore } from '../interfaces/api-key-store.interface';
 import { IWebhookStore } from '../interfaces/webhook-store.interface';
+import { ITemplateStore } from '../interfaces/template-store.interface';
 import { ApiKeyService } from '../services/api-key.service';
 import { ActionRegistry } from '../tools/webhook-action';
 import { buildAdminOpenApiSpec, buildSwaggerUiHtml } from './openapi';
@@ -53,6 +54,8 @@ export interface AdminOptions {
    * for full management.
    */
   webhookStore?: IWebhookStore;
+  /** Optional template store — enables the Email & UI tab in the admin UI. */
+  templateStore?: ITemplateStore;
   /** Optional directory for uploaded assets (e.g. logos). */
   uploadDir?: string;
   /**
@@ -131,6 +134,7 @@ function buildAdminHtml(baseUrl: string, features: {
   linkedAccounts: boolean;
   apiKeys: boolean;
   webhooks: boolean;
+  templates: boolean;
   upload: boolean;
   uploadBaseUrl: string;
 }): string {
@@ -146,6 +150,7 @@ function buildAdminHtml(baseUrl: string, features: {
     featLinkedAccounts: features.linkedAccounts,
     featApiKeys: features.apiKeys,
     featWebhooks: features.webhooks,
+    featTemplates: features.templates,
     featUpload: features.upload,
     uploadBaseUrl: features.uploadBaseUrl,
   });
@@ -220,6 +225,7 @@ export function createAdminRouter(
   const featLinkedAccounts = !!options.linkedAccountsStore;
   const featApiKeys = !!options.apiKeyStore;
   const featWebhooks = !!options.webhookStore;
+  const featTemplates = !!options.templateStore;
   const featUpload = !!options.uploadDir;
 
   // Resolve the directory that contains admin.css / admin.js.
@@ -273,12 +279,12 @@ export function createAdminRouter(
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.send(buildAdminHtml(_req.baseUrl, { sessions: featSessions, roles: featRoles, tenants: featTenants, metadata: featMetadata, twoFAPolicy: featTwoFAPolicy, control: featControl, linkedAccounts: featLinkedAccounts, apiKeys: featApiKeys, webhooks: featWebhooks, upload: featUpload, uploadBaseUrl: effectiveUploadBaseUrl }));
+    res.send(buildAdminHtml(_req.baseUrl, { sessions: featSessions, roles: featRoles, tenants: featTenants, metadata: featMetadata, twoFAPolicy: featTwoFAPolicy, control: featControl, linkedAccounts: featLinkedAccounts, apiKeys: featApiKeys, webhooks: featWebhooks, templates: featTemplates, upload: featUpload, uploadBaseUrl: effectiveUploadBaseUrl }));
   });
 
   // GET /admin/api/ping — health / auth check
   router.get('/api/ping', guard, (_req: Request, res: Response) => {
-    res.json({ ok: true, features: { sessions: featSessions, roles: featRoles, tenants: featTenants, metadata: featMetadata, twoFAPolicy: featTwoFAPolicy, control: featControl, linkedAccounts: featLinkedAccounts, apiKeys: featApiKeys, webhooks: featWebhooks, upload: featUpload } });
+    res.json({ ok: true, features: { sessions: featSessions, roles: featRoles, tenants: featTenants, metadata: featMetadata, twoFAPolicy: featTwoFAPolicy, control: featControl, linkedAccounts: featLinkedAccounts, apiKeys: featApiKeys, webhooks: featWebhooks, templates: featTemplates, upload: featUpload } });
   });
 
   // ---- Users ----------------------------------------------------------------
@@ -977,6 +983,56 @@ export function createAdminRouter(
       res.status(500).json({ error: 'Internal server error' });
     }
   });
+
+  // ── Email & UI Templates ──────────────────────────────────────────────────
+
+  if (featTemplates && options.templateStore) {
+    const store = options.templateStore;
+
+    // GET /admin/api/templates/mail — list all mail templates
+    router.get('/api/templates/mail', guard, async (_req: Request, res: Response) => {
+      try {
+        const templates = await store.listMailTemplates();
+        res.json({ templates });
+      } catch {
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    // POST /admin/api/templates/mail — create or update a mail template
+    router.post('/api/templates/mail', guard, async (req: Request, res: Response) => {
+      try {
+        const { id, baseHtml, baseText, translations } = req.body;
+        if (!id) { res.status(400).json({ error: 'id is required' }); return; }
+        await store.updateMailTemplate(id, { baseHtml, baseText, translations });
+        res.json({ success: true });
+      } catch {
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    // GET /admin/api/templates/ui — list all UI translations
+    router.get('/api/templates/ui', guard, async (_req: Request, res: Response) => {
+      try {
+        const translations = await store.listUiTranslations();
+        res.json({ translations });
+      } catch {
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    // POST /admin/api/templates/ui — update UI translations for a page
+    router.post('/api/templates/ui', guard, async (req: Request, res: Response) => {
+      try {
+        const { page, translations } = req.body;
+        if (!page || !translations) { res.status(400).json({ error: 'page and translations are required' }); return; }
+        await store.updateUiTranslations(page, translations);
+        res.json({ success: true });
+      } catch {
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+  }
 
   // ── Swagger / OpenAPI (optional) ───────────────────────────────────────────
   const swaggerEnabled =

@@ -280,6 +280,24 @@
 
             await window.AwesomeNodeAuth.checkSession();
             this.user = currentUser;
+            this.applyTranslations();
+        },
+
+        applyTranslations() {
+            const translations = this.config.translations || {};
+            if (Object.keys(translations).length === 0) return;
+
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (key && translations[key]) {
+                    // If it's an input/textarea placeholder
+                    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+                        el.placeholder = translations[key];
+                    } else {
+                        el.textContent = translations[key];
+                    }
+                }
+            });
         },
 
         async apiCall(endpoint, method = 'POST', body = null) {

@@ -1,4 +1,5 @@
 import { BaseUser } from './user.model';
+import { ITemplateStore } from '../interfaces/template-store.interface';
 
 /**
  * Configuration for the built-in HTTP-based mailer transport.
@@ -285,4 +286,8 @@ export interface AuthConfig {
      */
     checkOn?: 'allcalls' | 'refresh' | 'none';
   };
+  /**
+   * Optional template store for custom email and UI translations.
+   */
+  templateStore?: ITemplateStore;
 }

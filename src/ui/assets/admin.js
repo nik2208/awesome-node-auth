@@ -13,6 +13,7 @@
   var FEAT_LINKED_ACCOUNTS = !!cfg.featLinkedAccounts;
   var FEAT_API_KEYS = !!cfg.featApiKeys;
   var FEAT_WEBHOOKS = !!cfg.featWebhooks;
+  var FEAT_TEMPLATES = !!cfg.featTemplates;
   var FEAT_UPLOAD = !!cfg.featUpload;
   var UPLOAD_BASE_URL = cfg.uploadBaseUrl || '';
 
@@ -24,7 +25,8 @@
     roles: { filter: '' },
     tenants: { openId: null, filter: '' },
     apiKeys: { page: 0, filter: '', newRaw: null },
-    webhooks: { page: 0 }
+    webhooks: { page: 0 },
+    templates: { type: 'mail', selectedId: null, mailTemplates: [], uiTranslations: [] }
   };
   var PAGE_SIZE = 20;
 
@@ -39,6 +41,7 @@
     if (FEAT_API_KEYS) tabs.push({ id: 'apiKeys', label: '\uD83D\uDD11 API Keys' });
     if (FEAT_WEBHOOKS) tabs.push({ id: 'webhooks', label: '\uD83D\uDD17 Webhooks' });
     if (FEAT_CONTROL) tabs.push({ id: 'control', label: '\u2699\uFE0F Control' });
+    if (FEAT_TEMPLATES) tabs.push({ id: 'templates', label: '\uD83D\uDCE7 Email & UI' });
     tabs.forEach(function (t) {
       var btn = document.createElement('button');
       btn.id = 'tab-' + t.id;
@@ -126,6 +129,7 @@
     else if (tab === 'apiKeys') renderApiKeys();
     else if (tab === 'webhooks') renderWebhooks();
     else if (tab === 'control') renderControl();
+    else if (tab === 'templates') renderTemplates();
   }
 
   // ---- Helpers -------------------------------------------------------------
@@ -1295,6 +1299,163 @@
   window.addUserRole = addUserRole;
   window.removeUserRole = removeUserRole;
   window.saveUserMeta = saveUserMeta;
+  // ---- Email & UI Templates ───────────────────────────────────────────────
+  async function renderTemplates() {
+    var main = document.getElementById('main');
+    main.innerHTML = '<div class="card"><div class="card-header"><h2>Email & UI Templates</h2><span class="meta"><span class="spinner"></span></span></div></div>';
+    try {
+      if (_state.templates.type === 'mail') {
+        var res = await api('GET', '/api/templates/mail');
+        _state.templates.mailTemplates = res.templates || [];
+      } else {
+        var resUi = await api('GET', '/api/templates/ui');
+        _state.templates.uiTranslations = resUi.translations || [];
+      }
+      renderTemplatesUi();
+    } catch (e) {
+      main.innerHTML = '<div class="alert alert-error">' + esc(e.message) + '</div>';
+    }
+  }
+
+  function renderTemplatesUi() {
+    var main = document.getElementById('main');
+    var isMail = _state.templates.type === 'mail';
+    
+    var html = '<div class="card">'
+      + '<div class="card-header">'
+      + '<h2>Email & UI Templates</h2>'
+      + '<div style="display:flex;gap:.5rem">'
+      + '<button class="btn btn-sm ' + (isMail ? 'btn-primary' : '') + '" onclick="setTemplateType(\'mail\')">Email Templates</button>'
+      + '<button class="btn btn-sm ' + (!isMail ? 'btn-primary' : '') + '" onclick="setTemplateType(\'ui\')">UI Translations</button>'
+      + '</div>'
+      + '</div>'
+      + '<div style="padding:1.5rem" class="template-grid">'
+      + '<div class="template-list">'
+      + (isMail ? renderMailTemplateList() : renderUiTranslationList())
+      + '</div>'
+      + '<div class="template-editor-container" id="template-editor">'
+      + '<div class="empty">Select an item to edit</div>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+    
+    main.innerHTML = html;
+    if (_state.templates.selectedId) {
+      if (isMail) {
+        var t = _state.templates.mailTemplates.find(function(x) { return x.id === _state.templates.selectedId; });
+        if (t) editMailTemplate(t.id);
+      } else {
+        var u = _state.templates.uiTranslations.find(function(x) { return x.page === _state.templates.selectedId; });
+        if (u) editUiTranslation(u.page);
+      }
+    }
+  }
+
+  function renderMailTemplateList() {
+    var items = ['magic-link', 'password-reset', 'email-verification', 'invitation', 'otp'];
+    return items.map(function(id) {
+      var isCustom = _state.templates.mailTemplates.some(function(t) { return t.id === id; });
+      var active = _state.templates.selectedId === id ? ' active' : '';
+      return '<div class="template-item' + active + '" onclick="editMailTemplate(\'' + id + '\')">'
+        + id + (isCustom ? ' <small style="color:#10b981">(custom)</small>' : ' <small style="color:#9ca3af">(default)</small>')
+        + '</div>';
+    }).join('');
+  }
+
+  function renderUiTranslationList() {
+    var pages = ['login', 'register', 'forgot-password', 'reset-password', 'verify-email', '2fa', 'sms-login', 'common'];
+    return pages.map(function(page) {
+      var isCustom = _state.templates.uiTranslations.some(function(u) { return u.page === page; });
+      var active = _state.templates.selectedId === page ? ' active' : '';
+      return '<div class="template-item' + active + '" onclick="editUiTranslation(\'' + page + '\')">'
+        + page + (isCustom ? ' <small style="color:#10b981">(custom)</small>' : ' <small style="color:#9ca3af">(default)</small>')
+        + '</div>';
+    }).join('');
+  }
+
+  function editMailTemplate(id) {
+    _state.templates.selectedId = id;
+    var container = document.getElementById('template-editor');
+    var t = _state.templates.mailTemplates.find(function(x) { return x.id === id; }) || { id: id, baseHtml: '', baseText: '', translations: {} };
+    
+    // In search of default content if empty
+    var defaultHint = 'Default template will be used if left empty.';
+    
+    container.innerHTML = '<div class="template-editor-header">'
+      + '<h3>Editing: ' + id + '</h3>'
+      + '<button class="btn btn-primary btn-sm" onclick="saveMailTemplate(\'' + id + '\')">Save Changes</button>'
+      + '</div>'
+      + '<div class="template-editor-body">'
+      + '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">HTML Body</label>'
+      + '<textarea id="tpl-html" class="template-editor-textarea" placeholder="' + defaultHint + '">' + esc(t.baseHtml || '') + '</textarea></div>'
+      + '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Text Body</label>'
+      + '<textarea id="tpl-text" class="template-editor-textarea" style="height:100px" placeholder="' + defaultHint + '">' + esc(t.baseText || '') + '</textarea></div>'
+      + '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">i18n Interpolations (JSON)</label>'
+      + '<textarea id="tpl-i18n" class="template-editor-textarea" style="height:150px" placeholder=\'{"en": {"subject": "Reset Password", "title": "Hello!"}}\'>' + esc(JSON.stringify(t.translations || {}, null, 2)) + '</textarea></div>'
+      + '</div>';
+      
+    // Update active class in list
+    document.querySelectorAll('.template-list .template-item').forEach(function(el) {
+      el.classList.toggle('active', el.textContent.startsWith(id));
+    });
+  }
+
+  function editUiTranslation(page) {
+    _state.templates.selectedId = page;
+    var container = document.getElementById('template-editor');
+    var u = _state.templates.uiTranslations.find(function(x) { return x.page === page; }) || { page: page, translations: {} };
+    
+    container.innerHTML = '<div class="template-editor-header">'
+      + '<h3>UI Translations: ' + page + '</h3>'
+      + '<button class="btn btn-primary btn-sm" onclick="saveUiTranslation(\'' + page + '\')">Save Changes</button>'
+      + '</div>'
+      + '<div class="template-editor-body">'
+      + '<div style="background:#fef3c7;padding:.75rem;border-radius:6px;font-size:12px;color:#92400e;margin-bottom:.5rem">'
+      + '\u2139\uFE0F Define translations per language (e.g. "it", "en"). Keys should match data-i18n attributes.'
+      + '</div>'
+      + '<textarea id="ui-i18n" class="template-editor-textarea" style="flex:1" placeholder=\'{"en": {"site_name": "Auth", "login_title": "Sign In"}}\'>' + esc(JSON.stringify(u.translations || {}, null, 2)) + '</textarea>'
+      + '</div>';
+      
+    document.querySelectorAll('.template-list .template-item').forEach(function(el) {
+      el.classList.toggle('active', el.textContent.startsWith(page));
+    });
+  }
+
+  async function saveMailTemplate(id) {
+    try {
+      var baseHtml = document.getElementById('tpl-html').value;
+      var baseText = document.getElementById('tpl-text').value;
+      var i18nRaw = document.getElementById('tpl-i18n').value;
+      var translations = i18nRaw ? JSON.parse(i18nRaw) : {};
+      
+      await api('POST', '/api/templates/mail', { id: id, baseHtml: baseHtml, baseText: baseText, translations: translations });
+      flash('Mail template saved');
+      renderTemplates();
+    } catch (e) { flash(e.message, 'error'); }
+  }
+
+  async function saveUiTranslation(page) {
+    try {
+      var i18nRaw = document.getElementById('ui-i18n').value;
+      var translations = i18nRaw ? JSON.parse(i18nRaw) : {};
+      
+      await api('POST', '/api/templates/ui', { page: page, translations: translations });
+      flash('UI translations saved');
+      renderTemplates();
+    } catch (e) { flash(e.message, 'error'); }
+  }
+
+  function setTemplateType(type) {
+    _state.templates.type = type;
+    _state.templates.selectedId = null;
+    renderTemplates();
+  }
+
+  window.setTemplateType = setTemplateType;
+  window.editMailTemplate = editMailTemplate;
+  window.editUiTranslation = editUiTranslation;
+  window.saveMailTemplate = saveMailTemplate;
+  window.saveUiTranslation = saveUiTranslation;
   window.deleteUser = deleteUser;
   window.setBulk2FA = setBulk2FA;
   window.renderSessions = renderSessions;

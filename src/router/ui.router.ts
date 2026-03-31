@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { AuthConfig } from '../models/auth-config.model';
 import { ISettingsStore } from '../interfaces/settings-store.interface';
+import { ITemplateStore } from '../interfaces/template-store.interface';
 import { RouterOptions, resolveApiPrefix } from './auth.router';
 
 export interface UiRouterOptions {
@@ -41,6 +42,11 @@ export interface UiRouterOptions {
      * @default '/auth'
      */
     apiPrefix?: string;
+
+    /**
+     * Optional template store for UI translations.
+     */
+    templateStore?: ITemplateStore;
 }
 
 /**
@@ -51,7 +57,7 @@ export interface UiRouterOptions {
  */
 export function buildUiRouter(options: UiRouterOptions): Router {
     const router = Router();
-    const { uploadDir, settingsStore, authConfig, routerOptions } = options;
+    const { uploadDir, settingsStore, templateStore, authConfig, routerOptions } = options;
     const apiPrefix = resolveApiPrefix(authConfig, routerOptions);
 
     // In some environments (like ESM bundling), __dirname may not be available.
@@ -86,10 +92,24 @@ export function buildUiRouter(options: UiRouterOptions): Router {
         uiAssetsDir = candidates[0];
     }
 
-    async function getUiConfig(reqBaseUrl: string) {
+    async function getUiConfig(req: Request) {
         try {
+            const reqBaseUrl = req.baseUrl;
             const resolvedApiPrefix = reqBaseUrl.replace(/\/ui$/, '') || apiPrefix;
             const settings = settingsStore ? await settingsStore.getSettings() : {};
+
+            // Resolve language
+            const queryLang = req.query.lang as string | undefined;
+            const lang = queryLang || authConfig.email?.mailer?.defaultLang || 'en';
+
+            let translations: Record<string, string> = {};
+            if (templateStore) {
+                const page = req.path.replace(/^\//, '') || 'login';
+                const res = await templateStore.getUiTranslations(page);
+                if (res) {
+                    translations = res.translations[lang] || res.translations['en'] || {};
+                }
+            }
 
             const features = {
                 register: !!routerOptions?.onRegister,
@@ -117,9 +137,11 @@ export function buildUiRouter(options: UiRouterOptions): Router {
                 apiPrefix: resolvedApiPrefix,
                 features,
                 ui,
+                translations,
+                lang,
             };
         } catch (err) {
-            const fallbackApiPrefix = reqBaseUrl.replace(/\/ui$/, '') || apiPrefix;
+            const fallbackApiPrefix = req.baseUrl.replace(/\/ui$/, '') || apiPrefix;
             return {
                 apiPrefix: fallbackApiPrefix,
                 features: { register: false, google: false, github: false },
@@ -132,14 +154,16 @@ export function buildUiRouter(options: UiRouterOptions): Router {
                     bgColor: undefined,
                     bgImage: undefined,
                     cardBg: undefined
-                }
+                },
+                translations: {},
+                lang: 'en'
             };
         }
     }
 
     // 1. Configuration endpoint for the UI (still available for dynamic fetching)
     router.get('/config', async (req: Request, res: Response) => {
-        const config = await getUiConfig(req.baseUrl);
+        const config = await getUiConfig(req);
         // Include headless flag so auth.js can auto-configure itself
         (config as any).headless = !!(authConfig.ui?.headless);
         res.json(config);
@@ -171,7 +195,7 @@ export function buildUiRouter(options: UiRouterOptions): Router {
         try {
             let htmlContent = await fs.promises.readFile(htmlPath, 'utf8');
             console.log('[AwesomeNodeAuth] read file length:', htmlContent.length);
-            const config = await getUiConfig(req.baseUrl);
+            const config = await getUiConfig(req);
 
             // Construct style snippet to prevent FOUC (Flash of Unstyled Content)
             let styleTags = '<style>:root {';

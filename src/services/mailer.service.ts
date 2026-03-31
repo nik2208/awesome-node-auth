@@ -2,6 +2,7 @@ import https from 'https';
 import http from 'http';
 import { URL } from 'url';
 import { MailerConfig } from '../models/auth-config.model';
+import { ITemplateStore } from '../interfaces/template-store.interface';
 
 // ---------------------------------------------------------------------------
 // Built-in email templates (en / it)
@@ -140,37 +141,88 @@ interface MailPayload {
 }
 
 export class MailerService {
-  constructor(private readonly config: MailerConfig) {}
+  constructor(
+    private readonly config: MailerConfig,
+    private readonly templateStore?: ITemplateStore
+  ) {}
+
+  private async render(
+    templateId: string,
+    lang: string,
+    data: Record<string, unknown>,
+    fallback: (lang: Lang) => TemplateData
+  ): Promise<TemplateData> {
+    const l = this.resolveLang(lang);
+    if (this.templateStore) {
+      const tpl = await this.templateStore.getMailTemplate(templateId);
+      if (tpl) {
+        const translations = tpl.translations[l] || tpl.translations['en'] || {};
+        
+        const interpolate = (str: string) => {
+          // 1. Interpolate translations: {{T.key}}
+          let result = str.replace(/\{\{T\.([^}]+)\}\}/g, (_, key) => translations[key] || `[${key}]`);
+          // 2. Interpolate data: {{KEY}}
+          result = result.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
+            if (key.startsWith('T.')) return _; // already handled
+            return String(data[key] ?? `[${key}]`);
+          });
+          return result;
+        };
+
+        const subject = translations['subject'] || tpl.id;
+        return {
+          subject: interpolate(subject),
+          html: interpolate(tpl.baseHtml),
+          text: interpolate(tpl.baseText),
+        };
+      }
+    }
+    return fallback(l);
+  }
 
   // ---- Public helpers -------------------------------------------------------
 
   async sendPasswordReset(to: string, _token: string, link: string, lang?: string): Promise<void> {
-    const l = this.resolveLang(lang);
-    const tpl = passwordResetTemplate(link, l);
+    const tpl = await this.render('password-reset', lang || '', { link, token: _token }, (l) => passwordResetTemplate(link, l));
     await this.send({ to, ...tpl, from: this.config.from, fromName: this.config.fromName, provider: this.config.provider });
   }
 
   async sendMagicLink(to: string, _token: string, link: string, lang?: string): Promise<void> {
-    const l = this.resolveLang(lang);
-    const tpl = magicLinkTemplate(link, l);
+    const tpl = await this.render('magic-link', lang || '', { link, token: _token }, (l) => magicLinkTemplate(link, l));
     await this.send({ to, ...tpl, from: this.config.from, fromName: this.config.fromName, provider: this.config.provider });
   }
 
   async sendWelcome(to: string, data: Record<string, unknown>, lang?: string): Promise<void> {
-    const l = this.resolveLang(lang);
-    const tpl = welcomeTemplate(data, l);
+    const tpl = await this.render('welcome', lang || '', data, (l) => welcomeTemplate(data, l));
     await this.send({ to, ...tpl, from: this.config.from, fromName: this.config.fromName, provider: this.config.provider });
   }
 
   async sendVerificationEmail(to: string, _token: string, link: string, lang?: string): Promise<void> {
-    const l = this.resolveLang(lang);
-    const tpl = verificationEmailTemplate(link, l);
+    const tpl = await this.render('verify-email', lang || '', { link, token: _token }, (l) => verificationEmailTemplate(link, l));
     await this.send({ to, ...tpl, from: this.config.from, fromName: this.config.fromName, provider: this.config.provider });
   }
 
   async sendEmailChanged(to: string, newEmail: string, lang?: string): Promise<void> {
-    const l = this.resolveLang(lang);
-    const tpl = emailChangedTemplate(newEmail, l);
+    const tpl = await this.render('email-changed', lang || '', { newEmail }, (l) => emailChangedTemplate(newEmail, l));
+    await this.send({ to, ...tpl, from: this.config.from, fromName: this.config.fromName, provider: this.config.provider });
+  }
+
+  async sendInvitation(to: string, link: string, data: Record<string, unknown>, lang?: string): Promise<void> {
+    const tpl = await this.render('invitation', lang || '', { ...data, link }, (l) => {
+        // Fallback for invitation if not defined in store
+        if (l === 'it') {
+            return {
+                subject: 'Invito ad unirsi',
+                html: `<p>Sei stato invitato.</p><p><a href="${link}">${link}</a></p>`,
+                text: `Sei stato invitato.\n\n${link}`
+            };
+        }
+        return {
+            subject: 'Invitation to join',
+            html: `<p>You have been invited.</p><p><a href="${link}">${link}</a></p>`,
+            text: `You have been invited.\n\n${link}`
+        };
+    });
     await this.send({ to, ...tpl, from: this.config.from, fromName: this.config.fromName, provider: this.config.provider });
   }
 

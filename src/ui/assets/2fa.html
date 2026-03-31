@@ -11,24 +11,24 @@
 <body>
     <div class="auth-container">
         <img src="" alt="Logo" class="logo hidden">
-        <h1 class="site-name">Awesome Node Auth</h1>
-        <h2>Two-Factor Authentication</h2>
+        <h1 class="site-name" data-i18n="site_name">Awesome Node Auth</h1>
+        <h2 data-i18n="two_fa_title">Two-Factor Authentication</h2>
 
         <div id="alert" class="alert alert-error hidden"></div>
 
         <form id="2fa-form">
             <div class="form-group">
-                <label for="code">Verification Code</label>
+                <label for="code" data-i18n="two_fa_code_label">Verification Code</label>
                 <p id="method-text" class="footer-links" style="margin-bottom: 8px; text-align: left; font-size: 12px;">
                 </p>
-                <input type="text" id="code" name="code" required placeholder="000000"
+                <input type="text" id="code" name="code" required placeholder="000000" data-i18n="two_fa_code_placeholder"
                     style="text-align: center; letter-spacing: 4px; font-size: 18px;">
             </div>
-            <button type="submit" id="submit-btn">Verify Code</button>
+            <button type="submit" id="submit-btn" data-i18n="verify_code_button">Verify Code</button>
         </form>
 
         <div id="setup-section" class="hidden">
-            <p class="footer-links">Scan this QR code with your authenticator app:</p>
+            <p class="footer-links" data-i18n="two_fa_setup_instruction">Scan this QR code with your authenticator app:</p>
             <img id="qr-code" style="display: block; margin: 16px auto; width: 200px; height: 200px;">
             <p class="footer-links" style="font-size: 12px;">Or enter this code manually: <strong id="secret"></strong>
             </p>

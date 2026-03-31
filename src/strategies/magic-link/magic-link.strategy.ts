@@ -28,7 +28,7 @@ export class MagicLinkStrategy {
     if (config.email?.sendMagicLink) {
       await config.email.sendMagicLink(email, token, link, lang);
     } else if (config.email?.mailer) {
-      const mailer = new MailerService(config.email.mailer);
+      const mailer = new MailerService(config.email.mailer, config.templateStore);
       await mailer.sendMagicLink(email, token, link, lang);
     }
   }

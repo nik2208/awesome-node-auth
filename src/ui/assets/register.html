@@ -11,8 +11,8 @@
 <body>
     <div class="auth-container">
         <img src="" alt="Logo" class="logo hidden">
-        <h1 class="site-name">Awesome Node Auth</h1>
-        <h2>Create Account</h2>
+        <h1 class="site-name" data-i18n="site_name">Awesome Node Auth</h1>
+        <h2 data-i18n="register_title">Create Account</h2>
 
         <div id="alert" class="alert hidden"></div>
 
@@ -28,8 +28,8 @@
                 </div>
             </div>
             <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email" required>
+                <label for="email" data-i18n="email_label">Email</label>
+                <input type="email" id="email" name="email" required data-i18n="email_placeholder">
             </div>
             <div class="form-group">
                 <label for="password">Password</label>

@@ -11,11 +11,11 @@
 
 <body>
     <div class="auth-container">
-        <h1 class="site-name" id="site-name">Awesome Node Auth</h1>
-        <h2>Account Linking Required</h2>
+        <h1 class="site-name" id="site-name" data-i18n="site_name">Awesome Node Auth</h1>
+        <h2 data-i18n="account_linking_title">Account Linking Required</h2>
 
         <div id="step-info">
-            <div class="alert alert-warning" style="margin-bottom: 1.25rem;">
+            <div class="alert alert-warning" style="margin-bottom: 1.25rem;" data-i18n="account_linking_instruction">
                 An account with this email already exists. To link your
                 <strong id="provider-name">social</strong> account, click the button
                 below. We'll send a verification link to confirm ownership.
@@ -24,7 +24,7 @@
             <p id="email-display" style="text-align:center; color:#6b7280; font-size:.875rem; margin-bottom:1.5rem;">
             </p>
 
-            <button id="btn-send" class="btn btn-primary" style="width:100%;" onclick="sendLinkEmail()">
+            <button id="btn-send" class="btn btn-primary" style="width:100%;" onclick="sendLinkEmail()" data-i18n="send_verification_email_button">
                 Send verification email
             </button>
 

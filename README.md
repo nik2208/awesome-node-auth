@@ -60,6 +60,7 @@ Full DB examples (MongoDB, PostgreSQL, MySQL, in-memory) → [README.detailed.md
 | **Auth strategies** | Email/password · OAuth 2.0 (Google, GitHub, custom) · Magic links · SMS OTP · TOTP 2FA |
 | **Token management** | HttpOnly-cookie or Bearer mode · automatic access/refresh rotation · `__Host-`/`__Secure-` cookie prefixes |
 | **Stateful sessions** *(v1.5)* | `ISessionStore` + real-time revocation (`checkOn: allcalls\|refresh\|none`) · L1/L2 caching decorators |
+| **Dynamic email templates** *(v1.6)* | `ITemplateStore` — per-language mail templates + UI i18n with safe hardcoded fallback · built-in `MemoryTemplateStore` |
 | **CSRF protection** | Double-submit cookie pattern · `__Host-` prefix hardening against cookie-tossing |
 | **Account management** | Registration · change email/password · account deletion · email verification (none/lazy/strict) |
 | **Account linking** | Link multiple OAuth providers · conflict resolution via `IPendingLinkStore` |
@@ -97,6 +98,7 @@ const auth = new AuthConfigurator(config, userStore, {
   rbacStore,         // IRolesPermissionsStore
   tenantStore,       // ITenantStore
   pendingLinkStore,  // IPendingLinkStore   — OAuth account-linking conflicts
+  templateStore,     // ITemplateStore      — dynamic email templates + UI i18n (v1.6)
 });
 ```
 
