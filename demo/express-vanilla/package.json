@@ -7,7 +7,7 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "awesome-node-auth": "^1.8.2",
+    "awesome-node-auth": "^1.8.3",
     "cookie-parser": "^1.4.7",
     "express": "^4.21.2"
   },

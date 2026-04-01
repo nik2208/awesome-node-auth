@@ -115,11 +115,14 @@
     }
   }
 
-  document.getElementById('secret-input').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') doLogin();
-  });
+  var secretInput = document.getElementById('secret-input');
+  if (secretInput) {
+    secretInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') doLogin();
+    });
+  }
 
-  // Auto-login if token stored
+  // Auto-login if token stored (legacy)
   var stored = sessionStorage.getItem('admin_token');
   if (stored) {
     _token = stored;
@@ -129,6 +132,11 @@
       document.getElementById('app').style.flexDirection = 'column';
       showTab('users');
     }).catch(function () { sessionStorage.removeItem('admin_token'); _token = ''; });
+  } else if (cfg.sessionBased && !document.getElementById('login')) {
+    // Session-based (cookie): if the server didn't render the login form, it means we are authorized.
+    document.getElementById('app').style.display = 'flex';
+    document.getElementById('app').style.flexDirection = 'column';
+    showTab('users');
   }
 
   // ---- API helper ----------------------------------------------------------
@@ -1534,6 +1542,9 @@
   window.createWebhook = createWebhook;
   window.toggleWebhook = toggleWebhook;
   window.deleteWebhook = deleteWebhook;
+  window.showTab = showTab;
+  window.doLogin = doLogin;
+  window.doLogout = doLogout;
   window._state = _state;
 
   // ---- Init ----------------------------------------------------------------

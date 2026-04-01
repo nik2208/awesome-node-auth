@@ -236,7 +236,7 @@ function buildPolicyGuard(
         ? cookies[cookieName]
         : (cookies['__Host-accessToken'] ?? cookies['__Secure-accessToken'] ?? cookies['accessToken']);
 
-      const rawToken = bearerToken ?? cookieToken;
+      const rawToken = bearerToken || cookieToken;
 
       if (rawToken) {
         try {

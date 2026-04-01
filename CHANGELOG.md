@@ -3,6 +3,13 @@
 All notable changes to **awesome-node-auth** are documented in this file.  
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+
+## [1.8.3] — 2026-04-02
+
+### Fixed
+- **Admin UI JS** — fixed a regression where the Admin UI was not rendering the admin panel
+
 ---
 
 ## [1.8.2] — 2026-04-01
