@@ -38,7 +38,8 @@ let _adminRouter: ReturnType<typeof createAdminRouter> | undefined;
 export function getAdminRouter() {
   if (!_adminRouter) {
     _adminRouter = createAdminRouter(userStore, {
-      adminSecret: process.env.ADMIN_SECRET ?? '1234',
+      jwtSecret: process.env.ACCESS_TOKEN_SECRET ?? 'dev-secret',
+      accessPolicy: 'first-user',
     });
   }
   return _adminRouter;

@@ -137,7 +137,8 @@ app.use('/auth', auth.router({
 }));
 
 app.use('/admin', createAdminRouter(userStore, {
-  adminSecret: process.env.ADMIN_SECRET || '1234',
+  jwtSecret: process.env.ACCESS_TOKEN_SECRET || 'dev-secret',
+  accessPolicy: 'first-user',
 }));
 
 // ── Serve compiled Angular SPA in production ─────────────────────────────────
@@ -155,5 +156,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`\n  🔐  awesome-node-auth API server (Express + Angular SPA demo)`);
   console.log(`  http://localhost:${PORT}/auth  → auth endpoints`);
-  console.log(`  http://localhost:${PORT}/admin → admin panel (password: ${process.env.ADMIN_SECRET || '1234'})\n`);
+  console.log(`  http://localhost:${PORT}/admin → admin panel (auto-granted to first registered user)\n`);
 });

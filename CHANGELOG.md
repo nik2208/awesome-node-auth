@@ -5,6 +5,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.8.1] — 2026-04-01
+
+### Added
+- **Built-in Admin Login Fallback** — the Admin UI now includes a native login form (Email + Password) that appears when a user is not authenticated. This allows the Admin Panel to function in "zero-config" mode for headless or SPA-only projects without requiring a custom login path.
+
+### Changed
+- **`AuthRequestHandler` return type** — relaxed from `void | Promise<void>` to `any`. This improves compatibility with many common third-party Express middlewares (like `express-rate-limit`) that may return `unknown` or non-standard types.
+- **Admin Security Enforcement** — `accessPolicy` and `jwtSecret` are now strictly required in `createAdminRouter`.
+- **MCP Server Templates** — updated all code generators to use the standard `AuthConfigurator` and `createAdminRouter` patterns, removing dependencies on deprecated factory functions.
+- **`.env.example`** — removed `AUTH_ADMIN_SECRET` and added `ADMIN_LOGIN_PATH` documentation.
+
+### Fixed
+- **TypeScript Error 2322** in `mcp-server` and other integration points where `RateLimitRequestHandler` was not assignable to `AuthRequestHandler`.
+- **Angular SSR Template** — removed defunct `createNodeAuth` factory and restored manual setup in MCP scaffolding.
+
+### Removed
+- **`adminSecret` support** — the deprecated static password has been fully removed in favor of the session-based `accessPolicy`.
+
+---
+
 ## [1.8.0] — 2026-03-30
 
 ### Added

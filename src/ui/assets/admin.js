@@ -52,23 +52,52 @@
   }
 
   // ---- Auth ----------------------------------------------------------------
-  function doLogin() {
-    var val = document.getElementById('secret-input').value.trim();
-    if (!val) return;
-    sessionStorage.setItem('admin_token', val);
-    _token = val;
+  async function doLogin() {
+    var secret = document.getElementById('secret-input').value.trim();
+    if (!secret) return;
+
     document.getElementById('login-error').style.display = 'none';
-    api('GET', '/api/ping').then(function () {
-      document.getElementById('login').style.display = 'none';
-      document.getElementById('app').style.display = 'flex';
-      document.getElementById('app').style.flexDirection = 'column';
-      showTab('users');
-    }).catch(function () {
-      sessionStorage.removeItem('admin_token');
-      _token = '';
-      document.getElementById('login-error').textContent = 'Invalid admin secret';
-      document.getElementById('login-error').style.display = 'block';
-    });
+
+    if (cfg.sessionBased) {
+      // Session-based login (Email + Password)
+      var email = document.getElementById('email-input').value.trim();
+      if (!email) return;
+
+      try {
+        var loginUrl = cfg.authApiPrefix + '/login';
+        var res = await fetch(loginUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, password: secret })
+        });
+        
+        if (!res.ok) {
+          var err = await res.json().catch(function () { return { error: res.statusText }; });
+          throw new Error(err.error || 'Invalid credentials');
+        }
+
+        // Login successful (cookie set by server). Reload to let server-side guard pass.
+        location.reload();
+      } catch (e) {
+        document.getElementById('login-error').textContent = e.message;
+        document.getElementById('login-error').style.display = 'block';
+      }
+    } else {
+      // Legacy Admin Secret login
+      sessionStorage.setItem('admin_token', secret);
+      _token = secret;
+      api('GET', '/api/ping').then(function () {
+        document.getElementById('login').style.display = 'none';
+        document.getElementById('app').style.display = 'flex';
+        document.getElementById('app').style.flexDirection = 'column';
+        showTab('users');
+      }).catch(function () {
+        sessionStorage.removeItem('admin_token');
+        _token = '';
+        document.getElementById('login-error').textContent = 'Invalid admin secret';
+        document.getElementById('login-error').style.display = 'block';
+      });
+    }
   }
 
   function doLogout() {

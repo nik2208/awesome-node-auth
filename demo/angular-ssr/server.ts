@@ -98,7 +98,7 @@ const authConfig: AuthConfig = {
 };
 
 const authConfigurator = new AuthConfigurator(authConfig, userStore);
-const adminRouter      = createAdminRouter(userStore, { adminSecret: process.env['ADMIN_SECRET'] ?? '1234' });
+const adminRouter      = createAdminRouter(userStore, { jwtSecret: process.env['ACCESS_TOKEN_SECRET'] ?? 'dev-secret', accessPolicy: 'first-user' });
 
 export function app(): express.Express {
   const server  = express();

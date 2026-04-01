@@ -1,6 +1,6 @@
 {
   "name": "awesome-node-auth",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "Database-agnostic JWT authentication and communication bus for Node.js",
   "main": "dist/index.js",
   "scripts": {
@@ -82,5 +82,8 @@
     "dist/ui-assets",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "overrides": {
+    "rollup": "^4.59.0"
+  }
 }

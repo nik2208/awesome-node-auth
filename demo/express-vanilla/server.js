@@ -264,7 +264,8 @@ app.use('/auth/ui', buildUiRouter({
 // Mount the admin router →  GET /admin  (HTML UI + REST API)
 //   Admin password: 1234
 app.use('/admin', createAdminRouter(userStore, {
-  adminSecret: '1234',
+  jwtSecret: process.env.ACCESS_TOKEN_SECRET || 'dev-secret',
+  accessPolicy: 'first-user',
   settingsStore,          // enables ⚙️ Control tab + 🎨 UI Customization panel
   uploadDir: UPLOAD_DIR,  // enables file upload for logo and background image
   // Must match where buildUiRouter is mounted + '/assets/uploads':

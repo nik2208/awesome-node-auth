@@ -132,7 +132,7 @@ export type AuthRequestHandler = (
   res: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   next: (err?: any) => void,
-) => void | Promise<void>;
+) => any;
 
 // ─── Router ──────────────────────────────────────────────────────────────────
 

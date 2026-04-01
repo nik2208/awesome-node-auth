@@ -152,6 +152,15 @@ export interface AdminOptions {
    * @default '/admin'
    */
   swaggerBasePath?: string;
+
+  /**
+   * Optional custom login path to redirect unauthenticated browser requests.
+   * If not provided, the Admin UI serves its own internal login form as a fallback.
+   *
+   * @example '/login'
+   * @since 1.8.0
+   */
+  loginPath?: string;
 }
 
 /** Legacy guard — still used when `adminSecret` is provided. */
@@ -183,6 +192,7 @@ function buildPolicyGuard(
   userStore: IUserStore,
   jwtSecret: string | undefined,
   rbacStore?: IRolesPermissionsStore,
+  loginPath?: string,
 ): RequestHandler {
   return async (req: Request, res: Response, next) => {
     // 'open' — no auth required at all
@@ -212,10 +222,24 @@ function buildPolicyGuard(
     if (!payload) {
       const acceptsHtml = req.headers.accept?.includes('text/html');
       if (acceptsHtml) {
-        // Redirect to the login page, passing the current path as redirect target
-        const loginBase = (req.baseUrl || '').replace(/\/admin.*$/, '') + '/auth/ui/login';
-        const redirectTo = encodeURIComponent(req.baseUrl + req.path);
-        res.redirect(302, `${loginBase}?redirect=${redirectTo}`);
+        // 1. External redirect if configured
+        if (loginPath) {
+          const redirectTo = encodeURIComponent(req.baseUrl + req.path);
+          res.redirect(302, `${loginPath}?redirect=${redirectTo}`);
+          return;
+        }
+
+        // 2. Internal fallback: let the GET request through but mark as unauthenticated
+        // so the UI router can show the built-in login form.
+        if (req.method === 'GET') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (req as any).adminNeedsAuth = true;
+          next();
+          return;
+        }
+
+        // For non-GET requests (e.g. API) that aren't authenticated
+        res.status(401).json({ error: 'Unauthorized' });
       } else {
         res.status(401).json({ error: 'Unauthorized' });
       }
@@ -296,6 +320,10 @@ function buildAdminHtml(baseUrl: string, features: {
   uploadBaseUrl: string;
   /** When true the login screen is omitted — auth is handled by the server-side guard. */
   sessionBased?: boolean;
+  /** When true the login screen is forced (e.g. unauthenticated session-based access). */
+  showLogin?: boolean;
+  /** Path to the main auth API router (for login calls). */
+  authApiPrefix?: string;
 }): string {
   // Config object injected as window.__ADMIN_CONFIG__ and read by admin.js.
   const cfg = JSON.stringify({
@@ -313,12 +341,15 @@ function buildAdminHtml(baseUrl: string, features: {
     featUpload: features.upload,
     uploadBaseUrl: features.uploadBaseUrl,
     sessionBased: !!features.sessionBased,
+    authApiPrefix: features.authApiPrefix || '/auth',
   });
+
+  const showLogin = features.showLogin || !features.sessionBased;
 
   // When using accessPolicy the login screen is omitted: the server-side
   // guard has already verified the session and will redirect unauthenticated
   // browsers to the app login page before this HTML is ever served.
-  const loginScreen = features.sessionBased ? '' : `
+  const loginScreen = !showLogin ? '' : `
 <!-- Login screen -->
 <div id="login">
   <div class="login-card">
@@ -326,7 +357,8 @@ function buildAdminHtml(baseUrl: string, features: {
     <p>Administration panel</p>
     <div id="login-error" class="alert alert-error" style="display:none"></div>
     <div style="display:flex;flex-direction:column;gap:.75rem">
-      <input type="password" id="secret-input" placeholder="Admin secret" autofocus>
+      ${features.sessionBased ? '<input type="email" id="email-input" placeholder="Email" autofocus>' : ''}
+      <input type="password" id="secret-input" placeholder="${features.sessionBased ? 'Password' : 'Admin secret'}" ${features.sessionBased ? '' : 'autofocus'}>
       <button class="btn btn-primary" onclick="doLogin()">Sign in</button>
     </div>
   </div>
@@ -384,6 +416,7 @@ export function createAdminRouter(
       userStore,
       options.jwtSecret,
       options.rbacStore,
+      options.loginPath,
     );
     sessionBased = options.accessPolicy !== 'open';
   } else if (options.adminSecret) {
@@ -469,18 +502,32 @@ export function createAdminRouter(
   // When using legacy adminSecret: the HTML is served without auth (the client-side JS handles login).
   const htmlRoute: RequestHandler[] = sessionBased
     ? [guard, (_req: Request, res: Response) => {
+        const needsAuth = ((_req as any).adminNeedsAuth === true);
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
-        res.send(buildAdminHtml(_req.baseUrl, { sessions: featSessions, roles: featRoles, tenants: featTenants, metadata: featMetadata, twoFAPolicy: featTwoFAPolicy, control: featControl, linkedAccounts: featLinkedAccounts, apiKeys: featApiKeys, webhooks: featWebhooks, templates: featTemplates, upload: featUpload, uploadBaseUrl: effectiveUploadBaseUrl, sessionBased }));
+        res.send(buildAdminHtml(_req.baseUrl, { 
+          sessions: featSessions, roles: featRoles, tenants: featTenants, metadata: featMetadata, 
+          twoFAPolicy: featTwoFAPolicy, control: featControl, linkedAccounts: featLinkedAccounts, 
+          apiKeys: featApiKeys, webhooks: featWebhooks, templates: featTemplates, upload: featUpload, 
+          uploadBaseUrl: effectiveUploadBaseUrl, sessionBased, 
+          showLogin: needsAuth,
+          authApiPrefix: options.apiPrefix,
+        }));
       }]
     : [(_req: Request, res: Response) => {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
-        res.send(buildAdminHtml(_req.baseUrl, { sessions: featSessions, roles: featRoles, tenants: featTenants, metadata: featMetadata, twoFAPolicy: featTwoFAPolicy, control: featControl, linkedAccounts: featLinkedAccounts, apiKeys: featApiKeys, webhooks: featWebhooks, templates: featTemplates, upload: featUpload, uploadBaseUrl: effectiveUploadBaseUrl, sessionBased }));
+        res.send(buildAdminHtml(_req.baseUrl, { 
+          sessions: featSessions, roles: featRoles, tenants: featTenants, metadata: featMetadata, 
+          twoFAPolicy: featTwoFAPolicy, control: featControl, linkedAccounts: featLinkedAccounts, 
+          apiKeys: featApiKeys, webhooks: featWebhooks, templates: featTemplates, upload: featUpload, 
+          uploadBaseUrl: effectiveUploadBaseUrl, sessionBased,
+          authApiPrefix: options.apiPrefix,
+        }));
       }];
   router.get('/', ...htmlRoute);
 

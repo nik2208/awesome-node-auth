@@ -6,7 +6,7 @@
  *   - JwtAuthGuard wrapping the awesome-node-auth middleware
  *   - @CurrentUser() parameter decorator
  *   - AuthController delegating to awesome-node-auth's Express router
- *   - Admin panel at GET /admin  (password: 1234 or ADMIN_SECRET env var)
+ *   - Admin panel at GET /admin  (first user auto-granted access)
  *   - Static HTML frontend at GET /
  *
  * Run:
@@ -194,7 +194,8 @@ async function bootstrap() {
 
   // Admin panel (HTML UI + REST API) at /admin
   const adminRouter = createAdminRouter(userStore, {
-    adminSecret: process.env['ADMIN_SECRET'] ?? '1234',
+    jwtSecret: process.env['ACCESS_TOKEN_SECRET'] ?? 'dev-secret',
+    accessPolicy: 'first-user',
   });
   app.use('/admin', adminRouter as any);
 
@@ -206,7 +207,7 @@ async function bootstrap() {
 
   console.log(`\n  🔐  awesome-node-auth NestJS demo\n`);
   console.log(`  http://localhost:${port}         → demo frontend`);
-  console.log(`  http://localhost:${port}/admin   → admin panel (password: ${process.env['ADMIN_SECRET'] ?? '1234'})\n`);
+  console.log(`  http://localhost:${port}/admin   → admin panel (auto-granted to first registered user)\n`);
 }
 
 bootstrap();

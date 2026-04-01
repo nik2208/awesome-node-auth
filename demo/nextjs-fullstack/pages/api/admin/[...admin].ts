@@ -1,6 +1,6 @@
 /**
  * Admin panel catch-all route.
- * GET /api/admin  → HTML admin UI  (password from ADMIN_SECRET env var, default: 1234)
+ * GET /api/admin  → HTML admin UI  (first user auto-granted access)
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';

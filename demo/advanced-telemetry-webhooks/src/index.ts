@@ -115,7 +115,8 @@ async function main(): Promise<void> {
 
   // Mount admin UI at /admin  (protect with a strong secret in production)
   const adminOptions: AdminOptions = {
-    adminSecret: process.env.ADMIN_SECRET ?? 'change-me-admin-secret',
+    jwtSecret: process.env.ACCESS_TOKEN_SECRET ?? 'dev-secret',
+    accessPolicy: 'first-user',
     // rbacStore,
     // sessionStore,
     // tenantStore,
