@@ -78,6 +78,7 @@ app.listen(3000);
 - 🏢 **Multi-Tenancy** – Isolated multi-tenant apps via `ITenantStore`
 - 🗑️ **Account Deletion** – `DELETE /auth/account` self-service removal with full cleanup
 - 📧 **Email Verification** – `none` / `lazy` (configurable grace period) / `strict` modes
+- 🎨 **Dynamic Templates (v1.6.0)** – `ITemplateStore` for custom mail templates and UI i18n
 - 📡 **Event-Driven Tools** – `AuthEventBus`, telemetry, SSE, outgoing/inbound webhooks
 - 🔑 **API Keys** – M2M bcrypt-hashed keys with scopes, expiry, IP allowlist, audit log
 - 📖 **OpenAPI / Swagger UI** – Auto-generated specs for auth, admin, and tools routers
@@ -226,6 +227,44 @@ export class PgUserStore implements IUserStore {
 }
 ```
 
+
+## Framework-Agnostic Types (v1.7+)
+
+awesome-node-auth exports framework-neutral HTTP primitives so the library can be wired
+into Express, Fastify, NestJS, Next.js, or a plain Node.js `http.Server` using the same
+public API.
+
+| Type | Description |
+|------|-------------|
+| `AuthRequest` | Minimal request shape (headers, cookies, body, params, query, user, …) |
+| `AuthResponse` | Minimal response shape (status, json, cookie, redirect, …) |
+| `AuthNextFunction` | `(err?: any) => void` |
+| `AuthRequestHandler` | `(req: any, res: any, next) => void \| Promise<void>` — accepts any Express/Fastify middleware |
+| `AuthRouter` | Route-registration interface |
+| `expressAdapter(fn)` | Cast `AuthRequestHandler` → Express `RequestHandler` (zero runtime cost) |
+| `fastifyAdapter(fn)` | Wrap `AuthRequestHandler` as a Fastify `preHandler` hook via `req.raw` |
+
+```typescript
+import type { AuthRequestHandler } from 'awesome-node-auth';
+import { fastifyAdapter } from 'awesome-node-auth/adapters/fastify';
+
+// Write middleware once — works anywhere
+const requestLogger: AuthRequestHandler = (req, _res, next) => {
+  console.log(req.method, req.url);
+  next();
+};
+
+// Express — direct assignment, no cast needed
+app.use(requestLogger);
+
+// Fastify — via adapter
+fastify.addHook('preHandler', fastifyAdapter(requestLogger));
+```
+
+See `wiki/docs/frameworks/framework-agnostic.md` and `examples/fastify-integration.example.ts`
+for full usage examples.
+
+---
 
 ## Framework Integration
 
@@ -459,6 +498,9 @@ const config: AuthConfig = {
     headless: false,   // Set to true for SPAs (serves assets but not HTML)
   },
 
+  // Optional stores (v1.6.0 adds templateStore)
+  templateStore: templateStore, // ITemplateStore — dynamic emails + UI i18n
+
   // Base path where the auth router is mounted (default: '/auth').
   // Used by buildUiLink and email redirect generation.
   apiPrefix: '/auth',
@@ -574,6 +616,44 @@ email: {
   },
 },
 ```
+
+## Dynamic Templates & i18n (v1.6.0)
+
+For high-volume productions or multi-language apps, you can manage all email templates and UI translations through the `ITemplateStore` interface.
+
+### `ITemplateStore` Interface
+
+Implement this to store templates in your database (MongoDB, PostgreSQL, etc.):
+
+```typescript
+export interface ITemplateStore {
+  /** Get a custom mail template by ID (e.g. 'magic-link') */
+  getMailTemplate(id: string): Promise<MailTemplate | null>;
+  /** Get custom translations for a specific UI page (e.g. 'login') */
+  getUiTranslations(page: string): Promise<UiTranslation | null>;
+  
+  // Optional management methods (used by Admin UI)
+  listMailTemplates?(): Promise<MailTemplate[]>;
+  updateMailTemplate?(id: string, template: Partial<MailTemplate>): Promise<void>;
+  listUiTranslations?(): Promise<UiTranslation[]>;
+  updateUiTranslations?(page: string, translations: Record<string, any>): Promise<void>;
+}
+```
+
+### Email Interpolation
+
+Custom templates support two types of placeholders:
+1. `{{T.key}}`: Translated strings from the template's own `translations` object.
+2. `{{VAR}}`: Dynamic data provided by the library (e.g. `{{LINK}}`, `{{TOKEN}}`, `{{EMAIL}}`).
+
+### UI Internationalization
+
+When a `templateStore` is provided:
+1. The **UI Router** automatically injects translations into the HTML pages via SSR.
+2. The **Frontend (`auth.js`)** scans the DOM for `data-i18n` attributes and applies the translations instantly.
+
+To update translations from the Admin panel, ensure your `AuthConfigurator` has the `templateStore` attached.
+
 
 
 ## OAuth Strategies
@@ -1430,7 +1510,8 @@ const UPLOAD_DIR = path.join(__dirname, 'uploads');
 
 // Pass uploadDir + uploadBaseUrl when creating the admin router
 app.use('/admin', createAdminRouter(userStore, {
-  adminSecret: process.env.ADMIN_SECRET!,
+  accessPolicy: 'first-user',
+  jwtSecret: process.env.ACCESS_TOKEN_SECRET!,
   settingsStore,
   uploadDir: UPLOAD_DIR,
   // Must match: <where buildUiRouter is mounted> + '/assets/uploads'
@@ -2265,7 +2346,8 @@ import path from 'path';
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 
 app.use('/admin', createAdminRouter(userStore, {
-  adminSecret: process.env.ADMIN_SECRET!,  // Bearer token required for all admin routes
+  accessPolicy: 'first-user',
+  jwtSecret: process.env.ACCESS_TOKEN_SECRET!,
   sessionStore,         // optional — enables Sessions tab
   rbacStore,            // optional — enables Roles & Permissions tab + user-role assignment
   tenantStore,          // optional — enables Tenants tab + user-tenant membership
@@ -2274,6 +2356,7 @@ app.use('/admin', createAdminRouter(userStore, {
   linkedAccountsStore,  // optional — shows Linked Accounts column + detail section in Users tab
   apiKeyStore,          // optional — enables 🔑 API Keys tab (list, revoke, delete, create)
   webhookStore,         // optional — enables 🔗 Webhooks tab (list, create, toggle, delete)
+  templateStore,        // optional — enables 📧 Email & UI tab (v1.6.0)
   uploadDir: UPLOAD_DIR,           // optional — enables file-upload for logo and background image
   uploadBaseUrl: '/auth/ui/assets/uploads',  // must match <uiMount> + '/assets/uploads'
 }));
@@ -2289,6 +2372,7 @@ Open `http://localhost:3000/admin/` in your browser, enter the admin secret, and
 | **🏢 Tenants** | `ITenantStore.getAllTenants` | List tenants, client-side filter, create/delete tenants, manage members |
 | **🔑 API Keys** | `apiKeyStore` (see below) | List all API keys, revoke (soft), delete (hard), create new key (rawKey shown once) |
 | **🔗 Webhooks** | `webhookStore` (see below) | List all outgoing webhook registrations, register new, toggle active/inactive, delete |
+| **📧 Email & UI** | `templateStore` (see below) | Manage custom email templates (HTML/Text) and UI internationalization (v1.6.0) |
 | **⚙️ Control** | `settingsStore` (see below) | Toggle **Mandatory Email Verification** and **Mandatory 2FA** globally; **🎨 UI Customization** panel (colors, logo, background, site name, file upload when `uploadDir` is set) |
 
 The **Manage** panel (click the "Manage" button in the Users table) provides:
@@ -2311,7 +2395,8 @@ The store must implement `listAll` for listing; `revoke` is always required; `de
 
 ```typescript
 app.use('/admin', createAdminRouter(userStore, {
-  adminSecret: '…',
+  accessPolicy: 'first-user',
+  jwtSecret: process.env.ACCESS_TOKEN_SECRET!,
   apiKeyStore: myApiKeyStore,   // see IApiKeyStore
 }));
 ```
@@ -2322,7 +2407,8 @@ Pass an `IWebhookStore` implementation with the optional admin CRUD methods to e
 
 ```typescript
 app.use('/admin', createAdminRouter(userStore, {
-  adminSecret: '…',
+  accessPolicy: 'first-user',
+  jwtSecret: process.env.ACCESS_TOKEN_SECRET!,
   webhookStore: myWebhookStore,  // must implement listAll, add, remove, update
 }));
 ```
@@ -2335,6 +2421,24 @@ The tab lets you:
 
 The `secret` field is always masked as `***` in the listing response.
 
+### Email & UI Templates tab — `templateStore`
+
+Pass an `ITemplateStore` implementation to enable the **📧 Email & UI** tab:
+
+```typescript
+app.use('/admin', createAdminRouter(userStore, {
+  accessPolicy: 'first-user',
+  jwtSecret: process.env.ACCESS_TOKEN_SECRET!,
+  templateStore: myTemplateStore,  // see ITemplateStore (v1.6.0)
+}));
+```
+
+The tab provides a dedicated editor for:
+- **Email Templates**: HTML/Text body with interpolation support (`{{T.key}}`, `{{VAR}}`) for each core email type (Magic Link, Reset Password, OTP, etc.).
+- **UI Translations**: Key/Value JSON editor for internationalizing the built-in UI pages (Login, Register, 2FA, etc.).
+
+All changes are persisted to the provided store via the Admin REST API.
+
 ### Control tab — `settingsStore`
 
 Supply an object with two async methods to enable the **⚙️ Control** tab:
@@ -2343,7 +2447,8 @@ Supply an object with two async methods to enable the **⚙️ Control** tab:
 const settings: Record<string, unknown> = {};
 
 app.use('/admin', createAdminRouter(userStore, {
-  adminSecret: '…',
+  accessPolicy: 'first-user',
+  jwtSecret: process.env.ACCESS_TOKEN_SECRET!,
   settingsStore: {
     async getSettings() { return { ...settings }; },
     async updateSettings(s) { Object.assign(settings, s); },
@@ -2395,7 +2500,8 @@ The upload-related admin REST API endpoints (only available when `uploadDir` is 
 
 ### Admin REST API
 
-All admin API endpoints require `Authorization: Bearer <adminSecret>`.
+Most admin API endpoints require an active session where the user satisfies the `accessPolicy`.
+Unauthenticated requests will receive a 401 or be redirected.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -2435,8 +2541,12 @@ All admin API endpoints require `Authorization: Bearer <adminSecret>`.
 | `POST` | `/admin/api/webhooks` | Register a new outgoing webhook (`{ url, events?, secret?, tenantId?, isActive? }`) |
 | `PATCH` | `/admin/api/webhooks/:id` | Partial update a webhook (e.g. toggle `isActive`) |
 | `DELETE` | `/admin/api/webhooks/:id` | Delete a webhook registration |
+| `GET` | `/admin/api/templates/mail` | List all custom mail templates — requires `templateStore` |
+| `POST` | `/admin/api/templates/mail` | Create or update a custom mail template — requires `templateStore` |
+| `GET` | `/admin/api/templates/ui` | List all custom UI translations — requires `templateStore` |
+| `POST` | `/admin/api/templates/ui` | Update UI translations for a page — requires `templateStore` |
 
-> **Security note:** Mount the admin router behind a VPN or IP allow-list in production. The `adminSecret` is a single shared token — treat it like a root password.
+> **Security note:** By configuring an `accessPolicy` (e.g., `'first-user'`, `'is-admin-flag'`) and `jwtSecret`, the Admin UI requests a session. Unauthenticated browsers will be automatically redirected to the main app login page (`/auth/ui/login?redirect=/admin`). For further security in production, mount the admin router behind a VPN or IP allow-list.
 
 ## RouterOptions
 
@@ -2444,7 +2554,7 @@ All options passed to `auth.router(options)` (or `createAuthRouter(store, config
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `rateLimiter` | `RequestHandler` | Applied to all sensitive auth endpoints (login, refresh, 2FA, etc.) |
+| `rateLimiter` | `AuthRequestHandler` | Applied to all sensitive auth endpoints (login, refresh, 2FA, etc.) |
 | `googleStrategy` | `GoogleStrategy` | Enables `GET /auth/oauth/google` |
 | `githubStrategy` | `GithubStrategy` | Enables `GET /auth/oauth/github` |
 | `oauthStrategies` | `GenericOAuthStrategy[]` | Enables `GET /auth/oauth/:name` for any additional provider |
@@ -2455,6 +2565,7 @@ All options passed to `auth.router(options)` (or `createAuthRouter(store, config
 | `rbacStore` | `IRolesPermissionsStore` | Adds `roles` and `permissions` fields to `GET /me` response |
 | `sessionStore` | `ISessionStore` (with `deleteExpiredSessions`) | Enables `POST /auth/sessions/cleanup` |
 | `tenantStore` | `ITenantStore` | When provided, `DELETE /auth/account` also removes the user from all their tenants |
+| `templateStore` | `ITemplateStore` | Enables dynamic email templates and UI internationalization (v1.6.0) |
 | `swagger` | `boolean \| 'auto'` | Enable Swagger UI + OpenAPI spec. `'auto'` (default) — enabled when `NODE_ENV !== 'production'` |
 | `swaggerBasePath` | `string` | Base path for accurate OpenAPI path entries; must match the mount path (default: `'/auth'`) |
 
@@ -3144,7 +3255,8 @@ app.use('/auth', createAuthRouter(store, config, {
 
 // Admin router
 app.use('/admin', createAdminRouter(store, {
-  adminSecret: process.env.ADMIN_SECRET!,
+  accessPolicy: 'first-user',
+  jwtSecret: process.env.ACCESS_TOKEN_SECRET!,
   swagger: 'auto',
   swaggerBasePath: '/admin',
 }));

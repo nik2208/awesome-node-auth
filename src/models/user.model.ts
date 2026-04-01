@@ -78,4 +78,14 @@ export interface BaseUser {
    * users or for auditing purposes.
    */
   lastLogin?: Date | null;
+  /**
+   * When `true` this user has administrator privileges.
+   *
+   * Used by the `'is-admin-flag'` access policy on `createAdminRouter()`.
+   * For more granular RBAC control use `IRolesPermissionsStore` and a custom
+   * `accessPolicy` function instead.
+   *
+   * @since 1.8.0
+   */
+  isAdmin?: boolean;
 }

@@ -2,6 +2,7 @@ import { Router, Request, Response, RequestHandler } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import jwt from 'jsonwebtoken';
 import { IUserStore } from '../interfaces/user-store.interface';
 import { ISessionStore } from '../interfaces/session-store.interface';
 import { IRolesPermissionsStore } from '../interfaces/roles-permissions-store.interface';
@@ -15,14 +16,66 @@ import { ITemplateStore } from '../interfaces/template-store.interface';
 import { ApiKeyService } from '../services/api-key.service';
 import { ActionRegistry } from '../tools/webhook-action';
 import { buildAdminOpenApiSpec, buildSwaggerUiHtml } from './openapi';
+import { BaseUser } from '../models/user.model';
+
+/**
+ * Policy that controls who may access the Admin UI and REST API.
+ *
+ * | Value | Description |
+ * |-------|-------------|
+ * | `'first-user'` | Only the first registered user (lowest-ID) is granted access. Ideal for single-owner setups. |
+ * | `'is-admin-flag'` | Only users with `BaseUser.isAdmin === true` are granted access. |
+ * | `'open'` | No restriction — all authenticated users are granted access.  Use only behind a VPN or IP allow-list. |
+ * | `(user, rbacStore?) => Promise<boolean>` | Custom async predicate.  Return `true` to grant access. |
+ *
+ * When `accessPolicy` is set the guard validates the request JWT (using
+ * `jwtSecret`) and redirects unauthenticated browsers to the app login page
+ * (`/auth/ui/login?redirect=<adminPath>`).
+ *
+ * @since 1.8.0
+ */
+export type AdminAccessPolicy =
+  | 'first-user'
+  | 'is-admin-flag'
+  | 'open'
+  | ((user: BaseUser, rbacStore?: IRolesPermissionsStore) => boolean | Promise<boolean>);
 
 export interface AdminOptions {
   /**
    * Secret token required to access all admin endpoints.
    * Pass as a Bearer token: `Authorization: Bearer <adminSecret>`
    * The HTML UI presents a login form that stores the token in sessionStorage.
+   *
+   * @deprecated Use `accessPolicy` + `jwtSecret` instead (v1.8.0+).
+   *   `adminSecret` will be removed in a future major version.
+   *   It is still fully functional for backward compatibility.
    */
-  adminSecret: string;
+  adminSecret?: string;
+
+  /**
+   * Access control policy that governs who may use the Admin UI and API.
+   *
+   * When set, the guard validates the request JWT (`Authorization: Bearer <token>`
+   * or the `accessToken` cookie) and — for browser requests without a valid
+   * session — issues a `302` redirect to the app login page
+   * (`/auth/ui/login?redirect=<adminPath>`).
+   *
+   * Requires `jwtSecret` to be set when using any policy other than `'open'`.
+   *
+   * @since 1.8.0
+   */
+  accessPolicy?: AdminAccessPolicy;
+
+  /**
+   * JWT secret used to verify the access token when `accessPolicy` is set.
+   *
+   * Must match `AuthConfig.accessTokenSecret` (the same secret used to sign
+   * tokens during login).  Not required when `accessPolicy` is `'open'`.
+   *
+   * @since 1.8.0
+   */
+  jwtSecret?: string;
+
   /** Optional session store — enables the Sessions tab in the admin UI. */
   sessionStore?: ISessionStore;
   /** Optional RBAC store — enables the Roles & Permissions tab and user-role assignment. */
@@ -101,6 +154,7 @@ export interface AdminOptions {
   swaggerBasePath?: string;
 }
 
+/** Legacy guard — still used when `adminSecret` is provided. */
 function adminAuth(secret: string): RequestHandler {
   return (req: Request, res: Response, next) => {
     const auth = req.headers.authorization;
@@ -113,6 +167,109 @@ function adminAuth(secret: string): RequestHandler {
       res.status(403).json({ error: 'Forbidden' });
       return;
     }
+    next();
+  };
+}
+
+/**
+ * JWT-based guard that enforces `AdminAccessPolicy`.
+ *
+ * For HTML requests without a valid session, issues a 302 redirect to the
+ * app login page (`/auth/ui/login?redirect=<adminPath>`).
+ * For JSON / API requests without a valid session, returns 401.
+ */
+function buildPolicyGuard(
+  policy: AdminAccessPolicy,
+  userStore: IUserStore,
+  jwtSecret: string | undefined,
+  rbacStore?: IRolesPermissionsStore,
+): RequestHandler {
+  return async (req: Request, res: Response, next) => {
+    // 'open' — no auth required at all
+    if (policy === 'open') { next(); return; }
+
+    // ── 1. Extract and verify JWT ──────────────────────────────────────────
+    let payload: Record<string, unknown> | null = null;
+
+    if (jwtSecret) {
+      // Try Authorization header first, then cookie
+      const bearerToken = req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.slice(7)
+        : undefined;
+      const cookieToken = (req.cookies as Record<string, string> | undefined)?.accessToken;
+      const rawToken = bearerToken ?? cookieToken;
+
+      if (rawToken) {
+        try {
+          payload = jwt.verify(rawToken, jwtSecret) as Record<string, unknown>;
+        } catch {
+          payload = null;
+        }
+      }
+    }
+
+    // ── 2. Unauthenticated → redirect (HTML) or 401 (API) ─────────────────
+    if (!payload) {
+      const acceptsHtml = req.headers.accept?.includes('text/html');
+      if (acceptsHtml) {
+        // Redirect to the login page, passing the current path as redirect target
+        const loginBase = (req.baseUrl || '').replace(/\/admin.*$/, '') + '/auth/ui/login';
+        const redirectTo = encodeURIComponent(req.baseUrl + req.path);
+        res.redirect(302, `${loginBase}?redirect=${redirectTo}`);
+      } else {
+        res.status(401).json({ error: 'Unauthorized' });
+      }
+      return;
+    }
+
+    // ── 3. Load the full user record ───────────────────────────────────────
+    const userId = payload['sub'] as string | undefined;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    let user: BaseUser | null = null;
+    try {
+      user = await userStore.findById(userId);
+    } catch {
+      user = null;
+    }
+
+    if (!user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    // ── 4. Evaluate the policy ─────────────────────────────────────────────
+    let granted = false;
+    try {
+      if (policy === 'is-admin-flag') {
+        granted = user.isAdmin === true;
+      } else if (policy === 'first-user') {
+        if (typeof (userStore as unknown as { listUsers?: unknown }).listUsers === 'function') {
+          const firstPage = await (userStore as IUserStore & { listUsers(limit: number, offset: number): Promise<BaseUser[]> }).listUsers(1, 0);
+          granted = firstPage.length > 0 && firstPage[0].id === user.id;
+        } else {
+          // If listUsers is not implemented, fall back to denying access with a clear error
+          res.status(500).json({ error: 'accessPolicy: first-user requires IUserStore.listUsers to be implemented' });
+          return;
+        }
+      } else if (typeof policy === 'function') {
+        granted = await policy(user, rbacStore);
+      }
+    } catch {
+      granted = false;
+    }
+
+    if (!granted) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    // Store user on request for downstream handlers
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (req as any).user = user;
     next();
   };
 }
@@ -137,6 +294,8 @@ function buildAdminHtml(baseUrl: string, features: {
   templates: boolean;
   upload: boolean;
   uploadBaseUrl: string;
+  /** When true the login screen is omitted — auth is handled by the server-side guard. */
+  sessionBased?: boolean;
 }): string {
   // Config object injected as window.__ADMIN_CONFIG__ and read by admin.js.
   const cfg = JSON.stringify({
@@ -153,18 +312,13 @@ function buildAdminHtml(baseUrl: string, features: {
     featTemplates: features.templates,
     featUpload: features.upload,
     uploadBaseUrl: features.uploadBaseUrl,
+    sessionBased: !!features.sessionBased,
   });
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>awesome-node-auth Admin</title>
-  <link rel="stylesheet" href="${baseUrl}/assets/admin.css">
-</head>
-<body>
-
+  // When using accessPolicy the login screen is omitted: the server-side
+  // guard has already verified the session and will redirect unauthenticated
+  // browsers to the app login page before this HTML is ever served.
+  const loginScreen = features.sessionBased ? '' : `
 <!-- Login screen -->
 <div id="login">
   <div class="login-card">
@@ -177,7 +331,18 @@ function buildAdminHtml(baseUrl: string, features: {
     </div>
   </div>
 </div>
+`;
 
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>awesome-node-auth Admin</title>
+  <link rel="stylesheet" href="${baseUrl}/assets/admin.css">
+</head>
+<body>
+${loginScreen}
 <!-- Main app -->
 <div id="app">
   <div id="flash"></div>
@@ -206,7 +371,32 @@ export function createAdminRouter(
   options: AdminOptions,
 ): Router {
   const router = Router();
-  const guard = adminAuth(options.adminSecret);
+
+  // ── Select the appropriate authentication guard ──────────────────────────
+  // Priority: accessPolicy (new) > adminSecret (legacy) > open (no auth).
+  let guard: RequestHandler;
+  let sessionBased = false;
+
+  if (options.accessPolicy !== undefined) {
+    // New session-based guard
+    guard = buildPolicyGuard(
+      options.accessPolicy,
+      userStore,
+      options.jwtSecret,
+      options.rbacStore,
+    );
+    sessionBased = options.accessPolicy !== 'open';
+  } else if (options.adminSecret) {
+    // Legacy Bearer-token guard (backward compat)
+    guard = adminAuth(options.adminSecret);
+  } else {
+    // Neither provided — warn and default to open (developer must protect externally)
+    process.stderr.write(
+      '[awesome-node-auth] WARNING: createAdminRouter called without `accessPolicy` or `adminSecret`. ' +
+      'Admin routes are unprotected. Set accessPolicy in production.\n',
+    );
+    guard = (_req, _res, next) => next();
+  }
 
   // Resolve effective uploadBaseUrl for both UI script and API responses
   let effectiveUploadBaseUrl = options.uploadBaseUrl || '';
@@ -273,14 +463,26 @@ export function createAdminRouter(
     res.send(adminJs);
   });
 
-  // GET /admin — serve the HTML UI
-  router.get('/', (_req: Request, res: Response) => {
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    res.send(buildAdminHtml(_req.baseUrl, { sessions: featSessions, roles: featRoles, tenants: featTenants, metadata: featMetadata, twoFAPolicy: featTwoFAPolicy, control: featControl, linkedAccounts: featLinkedAccounts, apiKeys: featApiKeys, webhooks: featWebhooks, templates: featTemplates, upload: featUpload, uploadBaseUrl: effectiveUploadBaseUrl }));
-  });
+  // GET /admin — serve the HTML UI.
+  // When using accessPolicy (session-based): guard is applied so unauthenticated browsers are
+  // redirected to the login page before the HTML is served.
+  // When using legacy adminSecret: the HTML is served without auth (the client-side JS handles login).
+  const htmlRoute: RequestHandler[] = sessionBased
+    ? [guard, (_req: Request, res: Response) => {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.send(buildAdminHtml(_req.baseUrl, { sessions: featSessions, roles: featRoles, tenants: featTenants, metadata: featMetadata, twoFAPolicy: featTwoFAPolicy, control: featControl, linkedAccounts: featLinkedAccounts, apiKeys: featApiKeys, webhooks: featWebhooks, templates: featTemplates, upload: featUpload, uploadBaseUrl: effectiveUploadBaseUrl, sessionBased }));
+      }]
+    : [(_req: Request, res: Response) => {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.send(buildAdminHtml(_req.baseUrl, { sessions: featSessions, roles: featRoles, tenants: featTenants, metadata: featMetadata, twoFAPolicy: featTwoFAPolicy, control: featControl, linkedAccounts: featLinkedAccounts, apiKeys: featApiKeys, webhooks: featWebhooks, templates: featTemplates, upload: featUpload, uploadBaseUrl: effectiveUploadBaseUrl, sessionBased }));
+      }];
+  router.get('/', ...htmlRoute);
 
   // GET /admin/api/ping — health / auth check
   router.get('/api/ping', guard, (_req: Request, res: Response) => {

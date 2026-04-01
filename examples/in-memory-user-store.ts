@@ -251,7 +251,7 @@ export class InMemoryLinkedAccountsStore implements ILinkedAccountsStore {
  *
  * Usage:
  *   const settingsStore = new InMemorySettingsStore();
- *   app.use('/admin', createAdminRouter(userStore, { adminSecret, settingsStore }));
+ *   app.use('/admin', createAdminRouter(userStore, { accessPolicy: 'first-user', jwtSecret, settingsStore }));
  *   // Also pass to auth router so 2FA disable policy is enforced:
  *   app.use('/auth', createAuthRouter(userStore, config, { settingsStore }));
  */

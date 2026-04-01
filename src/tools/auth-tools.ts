@@ -3,9 +3,11 @@ import { AuthEventBus, AuthEventPayload } from '../events/auth-event-bus';
 import { ITelemetryStore, TelemetryEvent } from '../interfaces/telemetry-store.interface';
 import { IWebhookStore, OutgoingWebhookEvent } from '../interfaces/webhook-store.interface';
 import { ISseDistributor } from '../interfaces/sse-distributor.interface';
+import { IUserStore } from '../interfaces/user-store.interface';
 import { SseManager, StreamEvent } from './sse-manager';
 import { WebhookSender } from './webhook-sender';
 import { SseNotifyRegistry } from './sse-notify.decorator';
+import { NotificationService, EmailNotificationConfig, SmsNotificationConfig } from '../services/notification.service';
 
 /**
  * Options passed to {@link AuthTools}.
@@ -47,6 +49,36 @@ export interface AuthToolsOptions {
    * @default '1'
    */
   webhookVersion?: string;
+
+  /**
+   * Optional user store.  Required when using `'email'` or `'sms'` channels
+   * in {@link AuthTools.notify} so the service can look up the user's contact
+   * details by `options.userId`.
+   *
+   * @since 1.8.0
+   */
+  userStore?: IUserStore;
+
+  /**
+   * Email transport configuration.  When provided, the `'email'` channel in
+   * {@link AuthTools.notify} will send emails using the built-in HTTP mailer.
+   *
+   * Accepts the same shape as `AuthConfig.email.mailer`.
+   *
+   * @since 1.8.0
+   */
+  emailConfig?: EmailNotificationConfig;
+
+  /**
+   * SMS transport configuration.  When provided, the `'sms'` channel in
+   * {@link AuthTools.notify} will send SMS messages using the built-in SMS
+   * service.
+   *
+   * Accepts the same shape as `AuthConfig.sms`.
+   *
+   * @since 1.8.0
+   */
+  smsConfig?: SmsNotificationConfig;
 }
 
 /**
@@ -69,6 +101,36 @@ export interface NotifyOptions {
   tenantId?: string;
   userId?: string;
   metadata?: Record<string, unknown>;
+  /**
+   * Delivery channels.  Defaults to `['sse']` (backward-compatible).
+   *
+   * - `'sse'`   — broadcast to SSE subscribers on the given `target` topic.
+   * - `'email'` — send an email to the user identified by `userId` (requires
+   *               `userStore` and `emailConfig` in {@link AuthToolsOptions}).
+   * - `'sms'`   — send an SMS to the user identified by `userId` (requires
+   *               `userStore` and `smsConfig` in {@link AuthToolsOptions}).
+   *
+   * When multiple channels are listed, all are attempted; a failure in one
+   * channel does **not** abort the others.
+   *
+   * @since 1.8.0
+   * @default ['sse']
+   */
+  channels?: Array<'sse' | 'email' | 'sms'>;
+  /**
+   * Email subject override.  Used when `channels` includes `'email'`.
+   * Defaults to the stringified `options.type` or `'Notification'`.
+   *
+   * @since 1.8.0
+   */
+  emailSubject?: string;
+  /**
+   * SMS message body override.  Used when `channels` includes `'sms'`.
+   * Defaults to the JSON-stringified `data` payload.
+   *
+   * @since 1.8.0
+   */
+  smsMessage?: string;
 }
 
 /**
@@ -102,6 +164,8 @@ export class AuthTools {
   private readonly webhookStore?: IWebhookStore;
   private readonly webhookSender: WebhookSender;
   private readonly webhookVersion: string;
+  private readonly userStore?: IUserStore;
+  private readonly notificationService?: NotificationService;
 
   constructor(eventBus: AuthEventBus, options: AuthToolsOptions = {}) {
     this.eventBus = eventBus;
@@ -110,6 +174,14 @@ export class AuthTools {
     this.webhookSender = new WebhookSender();
     this.webhookVersion = options.webhookVersion ?? '1';
     this.sseManager = options.sse ? new SseManager(options.sseOptions) : null;
+    this.userStore = options.userStore;
+
+    if (options.emailConfig || options.smsConfig) {
+      this.notificationService = new NotificationService({
+        email: options.emailConfig,
+        sms: options.smsConfig,
+      });
+    }
 
     if (this.sseManager) {
       SseNotifyRegistry.setManager(this.sseManager);
@@ -197,21 +269,76 @@ export class AuthTools {
   }
 
   /**
-   * Send a real-time notification to a specific SSE topic.
+   * Send a notification to one or more delivery channels.
    *
-   * @param target   Target topic (e.g. `'user:123'`, `'tenant:acme'`).
+   * By default (or when `channels` is `['sse']`) the behaviour is identical to
+   * the original synchronous broadcast.  Pass additional channels to also
+   * deliver the notification via email and/or SMS.
+   *
+   * When `'email'` or `'sms'` is included the method becomes asynchronous and
+   * requires:
+   *   - `userStore` — to look up the user's contact details by `options.userId`.
+   *   - `emailConfig` / `smsConfig` — transport configuration in
+   *     {@link AuthToolsOptions}.
+   *
+   * Channel failures are best-effort and do not reject the returned Promise.
+   *
+   * @param target   Target SSE topic (e.g. `'user:123'`, `'tenant:acme'`).
    * @param data     Payload to deliver.
-   * @param options  Optional type, tenantId, userId, metadata.
+   * @param options  Channels, type, tenantId, userId, metadata, etc.
+   *
+   * @since 1.8.0 (async + multi-channel)
    */
-  notify<T = unknown>(target: string, data: T, options: NotifyOptions = {}): void {
-    if (!this.sseManager) return;
-    this.sseManager.broadcast<T>(target, {
-      type: options.type ?? 'notification',
-      data,
-      tenantId: options.tenantId,
-      userId: options.userId,
-      metadata: options.metadata,
-    });
+  async notify<T = unknown>(target: string, data: T, options: NotifyOptions = {}): Promise<void> {
+    const channels = options.channels ?? ['sse'];
+
+    // ── 1. SSE ──────────────────────────────────────────────────────────────
+    if (channels.includes('sse') && this.sseManager) {
+      this.sseManager.broadcast<T>(target, {
+        type: options.type ?? 'notification',
+        data,
+        tenantId: options.tenantId,
+        userId: options.userId,
+        metadata: options.metadata,
+      });
+    }
+
+    // ── 2. Email / SMS (only when userId is provided and userStore is set) ───
+    if ((channels.includes('email') || channels.includes('sms')) && options.userId && this.userStore) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let user: any = null;
+      try {
+        user = await this.userStore.findById(options.userId);
+      } catch {
+        user = null;
+      }
+
+      if (user) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const u = user as any;
+
+        // ── 2a. Email ─────────────────────────────────────────────────────
+        if (channels.includes('email') && u.email && this.notificationService?.hasEmail) {
+          const subject = options.emailSubject ?? (options.type ? String(options.type) : 'Notification');
+          const body    = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+          this.notificationService.sendEmail({
+            to: u.email,
+            subject,
+            html: `<p>${body.replace(/\n/g, '<br>')}</p>`,
+            text: body,
+          }).catch(() => {/* best-effort */});
+        }
+
+        // ── 2b. SMS ───────────────────────────────────────────────────────
+        if (channels.includes('sms') && u.phoneNumber && this.notificationService?.hasSms) {
+          const message = options.smsMessage ?? (typeof data === 'string' ? data : JSON.stringify(data));
+          this.notificationService.sendSms({
+            to: u.phoneNumber,
+            message,
+          }).catch(() => {/* best-effort */});
+        }
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------

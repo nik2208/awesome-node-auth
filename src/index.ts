@@ -1,5 +1,12 @@
 export { AuthConfigurator } from './auth-configurator';
 
+// ---- Framework-agnostic HTTP types ------------------------------------------
+export type { AuthRequest, AuthResponse, AuthNextFunction, AuthRequestHandler, AuthRouter } from './http-types';
+
+// ---- Framework adapters -------------------------------------------------------
+export { expressAdapter } from './adapters/express';
+export { fastifyAdapter } from './adapters/fastify';
+
 export type { IUserStore } from './interfaces/user-store.interface';
 export type { ITokenStore } from './interfaces/token-store.interface';
 export type { IAuthStrategy } from './interfaces/auth-strategy.interface';
@@ -41,6 +48,8 @@ export { TokenService } from './services/token.service';
 export { PasswordService } from './services/password.service';
 export { SmsService } from './services/sms.service';
 export { MailerService } from './services/mailer.service';
+export { NotificationService } from './services/notification.service';
+export type { EmailNotificationConfig, SmsNotificationConfig, SendEmailOptions, SendSmsOptions } from './services/notification.service';
 export type { MailerConfig } from './models/auth-config.model';
 export { ApiKeyService } from './services/api-key.service';
 export type { CreateApiKeyOptions, CreatedApiKey } from './services/api-key.service';
@@ -50,7 +59,7 @@ export { createApiKeyMiddleware } from './middleware/api-key.middleware';
 export { createAuthRouter, buildUiLink } from './router/auth.router';
 export type { RouterOptions } from './router/auth.router';
 export { createAdminRouter } from './router/admin.router';
-export type { AdminOptions } from './router/admin.router';
+export type { AdminOptions, AdminAccessPolicy } from './router/admin.router';
 export { buildUiRouter } from './router/ui.router';
 export type { UiRouterOptions } from './router/ui.router';
 

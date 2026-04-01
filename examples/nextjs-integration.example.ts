@@ -91,7 +91,8 @@ export function getAuth(): AuthConfigurator {
 //
 
 export const adminRouter = createAdminRouter(userStore as InMemoryUserStore, {
-  adminSecret: process.env.ADMIN_SECRET ?? 'change-me-admin-secret',
+  accessPolicy: 'first-user',
+  jwtSecret: process.env.ACCESS_TOKEN_SECRET ?? 'change-me-access-secret',
   linkedAccountsStore,
   settingsStore,
   // Optional: enable file upload in the UI Customization panel.
@@ -169,6 +170,12 @@ async function runNodeAuthRouter(
         return originalEnd(chunk);
       };
 
+      // router() expects Express-decorated IncomingMessage / ServerResponse.
+      // The `as any` cast is necessary here because TypeScript's contravariance
+      // rules (strictFunctionTypes) prevent assigning the plain Node.js types
+      // to the Express-specific overloads — the same reason AuthRequestHandler
+      // uses `any` for its parameter types.  At runtime both objects are
+      // structurally compatible.
       router(nodeReq as any, nodeRes as any, () => {
         resolve(new NextResponse('Not found', { status: 404 }));
       });
@@ -337,7 +344,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 //     router(req as any, res as any, () => res.status(404).end());
 //   }
 //
-// pages/api/admin/[...admin].ts  (admin panel — protect with ADMIN_SECRET)
+// pages/api/admin/[...admin].ts  (admin panel — protected by accessPolicy: 'first-user')
 //
 //   import type { NextApiRequest, NextApiResponse } from 'next';
 //   import { adminRouter } from '../../../lib/admin';

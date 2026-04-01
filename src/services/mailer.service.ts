@@ -226,6 +226,30 @@ export class MailerService {
     await this.send({ to, ...tpl, from: this.config.from, fromName: this.config.fromName, provider: this.config.provider });
   }
 
+  /**
+   * Send a custom (free-form) email notification.
+   *
+   * Use this when you need to send an arbitrary business notification (e.g.
+   * "your subscription expires in 3 days") using the same transport that is
+   * already configured for auth emails.
+   *
+   * @param to      Recipient email address.
+   * @param subject Subject line.
+   * @param html    HTML body.
+   * @param text    Plain-text fallback (defaults to stripped HTML).
+   */
+  async sendCustom(to: string, subject: string, html: string, text?: string): Promise<void> {
+    await this.send({
+      to,
+      subject,
+      html,
+      text: text ?? html,
+      from: this.config.from,
+      fromName: this.config.fromName,
+      provider: this.config.provider,
+    });
+  }
+
   // ---- Transport ------------------------------------------------------------
 
   private resolveLang(lang?: string): Lang {

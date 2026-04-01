@@ -172,7 +172,8 @@ const authRouter = createAuthRouter(userStore, config, {
 //
 
 const adminRouter = createAdminRouter(userStore, {
-  adminSecret: process.env.ADMIN_SECRET ?? 'change-me-admin-secret',
+  accessPolicy: 'first-user',
+  jwtSecret: process.env.ACCESS_TOKEN_SECRET ?? 'change-me-access-secret',
   settingsStore,
   // Pass linkedAccountsStore to show linked accounts in the Users table and
   // detail panel, and to enable GET /admin/api/users/:id/linked-accounts.
@@ -285,8 +286,8 @@ app.listen(PORT, () => {
 //
 // ── Admin panel notes ─────────────────────────────────────────────────────────
 //
-// Enable the admin control panel by visiting /admin in your browser and
-// entering the ADMIN_SECRET. From the ⚙️ Control tab you can:
+// Enable the admin control panel by visiting /admin in your browser.
+// Note: You must log in as an administrator (e.g., the first created user). From the ⚙️ Control tab you can:
 //   - Set email verification policy (none / lazy / strict) with grace period
 //   - Toggle mandatory 2FA for all users
 //   - Customize the UI: site name, primary/secondary colors, logo, background

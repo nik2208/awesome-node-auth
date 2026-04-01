@@ -1064,11 +1064,11 @@ class MyApp extends StatelessWidget {
 // 5. Admin REST API (for admin tooling / back-office Flutter apps)
 // ---------------------------------------------------------------------------
 //
-// Use the same bearer pattern with the admin secret:
+// Use the same bearer pattern with a valid admin access token:
 //
 //   final adminHeaders = {
 //     'Content-Type': 'application/json',
-//     'Authorization': 'Bearer $adminSecret',
+//     'Authorization': 'Bearer $adminAccessToken',
 //   };
 //
 //   // List users

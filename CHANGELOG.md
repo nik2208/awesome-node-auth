@@ -5,6 +5,88 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.8.0] — 2026-03-30
+
+### Added
+- **`NotificationService`** (`src/services/notification.service.ts`) — lightweight facade
+  wrapping `MailerService` and `SmsService`; accepts `email` and `sms` config independently
+  so notification capabilities can be passed to `AuthTools` without exposing the full `AuthConfig`.
+- **Multi-channel `notify()`** — `AuthTools.notify()` is now `async` and accepts an optional
+  `channels?: ('sse' | 'email' | 'sms')[]` array in `NotifyOptions`.  Email and SMS channels
+  require `userStore`, `emailConfig`/`smsConfig` in `AuthToolsOptions` respectively.
+  Defaults to `['sse']` — fully backward-compatible.
+- **`AdminAccessPolicy`** type — `'first-user' | 'is-admin-flag' | 'open' | (user, rbacStore?) => boolean`;
+  exported from the main package entry point.
+- **Session-based Admin UI guard** — new `buildPolicyGuard()` middleware validates the app JWT
+  and evaluates `accessPolicy`.  Unauthenticated browser requests are redirected automatically to
+  `/auth/ui/login?redirect=<adminPath>` (302); API requests receive 401.
+- **`BaseUser.isAdmin?: boolean`** — convenience flag used by the `'is-admin-flag'` policy.
+- **`MailerService.sendCustom()`** — sends arbitrary business emails using the configured mailer
+  transport (subject, HTML, plain-text).
+- **`AuthToolsOptions.userStore?`** — optional `IUserStore` for resolving contact details in
+  multi-channel notify.
+- **`AuthToolsOptions.emailConfig?`** / **`AuthToolsOptions.smsConfig?`** — transport configs
+  for email/SMS notification channels; accept the same shape as `MailerConfig` / `SmsConfig`.
+
+### Changed
+- `AdminOptions.adminSecret` is now **optional** and **deprecated**.  The field remains fully
+  functional for backward compatibility but will be removed in a future major version.
+  Migrate to `accessPolicy` + `jwtSecret` as described in the Admin Panel guide.
+- `AdminOptions` now exposes `accessPolicy?: AdminAccessPolicy` and `jwtSecret?: string`.
+- Admin HTML (`buildAdminHtml`) omits the secret-input login screen when `accessPolicy` is set
+  (`sessionBased: true`); the server-side guard handles authentication before serving the page.
+- MCP code generators (`backend.ts`, `scaffold.ts`, `test-generator.ts`) now emit
+  `accessPolicy: 'first-user'` + `jwtSecret` instead of `adminSecret` + `ADMIN_SECRET`.
+- `env-generator.ts` no longer emits an `ADMIN_SECRET` variable; replaced with a comment
+  explaining that session-based auth is used.
+- `mcp-server/src/resources/docs.ts` and `prompts/index.ts` updated to document the new
+  access policy system and remove `ADMIN_SECRET` instructions.
+- `wiki/docs/advanced/admin.md` rewritten: auth-flow diagram updated, setup examples use
+  `accessPolicy`/`jwtSecret`, migration tip added.
+- `wiki/docs/advanced/auth-tools.md` updated: `notify()` section extended with email/SMS
+  channel examples and configuration.
+
+### Fixed
+- Admin router no longer warns about missing `adminSecret` when `accessPolicy` is provided.
+
+---
+
+## [1.7.0] — 2026-03-30
+
+### Added
+- **Framework-agnostic HTTP types** (`src/http-types.ts`) — `AuthRequest`, `AuthResponse`,
+  `AuthNextFunction`, `AuthRequestHandler`, `AuthRouter` interfaces with zero framework
+  dependencies, exported from the main package entry point.
+- **Express adapter** (`src/adapters/express.ts`) — `expressAdapter()` zero-overhead cast
+  from `AuthRequestHandler` to Express `RequestHandler`; re-exports `Router`, `RequestHandler`,
+  `Request`, `Response`, `NextFunction` from Express for convenience.
+- **Fastify adapter** (`src/adapters/fastify.ts`) — `fastifyAdapter()` wraps an
+  `AuthRequestHandler` as a Fastify `preHandler` hook via `req.raw` / `reply.raw`;
+  no extra dependencies required.
+- **`awesome-node-auth://guides/framework-agnostic`** MCP resource — guide covering Express,
+  NestJS, Next.js App Router, and custom adapter patterns.
+- **`examples/fastify-integration.example.ts`** — reference Fastify integration showing
+  middleware-only, full-router (`@fastify/express`), and manual token-service patterns.
+
+### Changed
+- `RouterOptions.rateLimiter` now typed as `AuthRequestHandler` instead of `RequestHandler`
+  (Express `RequestHandler` remains directly assignable — no breaking change).
+- `AuthRequestHandler` JSDoc extended with `@example`, `@since 1.7.0`, and a full
+  explanation of the TypeScript contravariance reason for using `any` parameters.
+- `examples/nestjs-integration.example.ts` updated: `JwtAuthGuard` and `CurrentUser`
+  decorator now use the framework-neutral `AuthRequest` type instead of `import { Request }
+  from 'express'`.
+
+### Fixed
+- MCP server: corrected stale endpoint names across `docs.ts`, `prompts/index.ts`,
+  `test-generator.ts` (`/magic-link/request` → `/magic-link/send`, `2fa/login` → `2fa/verify`,
+  `sms/request` → `sms/send`).
+- `wiki/docs/frameworks/framework-agnostic.md`: replaced inaccurate "Express `RequestHandler`
+  is structurally assignable to `AuthRequestHandler`" with a technically-correct contravariance
+  explanation.
+
+---
+
 ## [1.6.0] — 2026-03-21
 
 ### Added

@@ -53,6 +53,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { AuthConfigurator, AuthConfig, IUserStore, createAuthRouter, createAdminRouter } from '../src/index';
+import type { AuthRequest } from '../src/http-types';
 
 // ---- Token / constants ----------------------------------------------------
 
@@ -110,7 +111,8 @@ export class JwtAuthGuard implements CanActivate {
   ) {}
 
   canActivate(context: ExecutionContext): Promise<boolean> {
-    const req  = context.switchToHttp().getRequest<Request>();
+    // AuthRequest is the framework-neutral type — no need to import from 'express' here.
+    const req  = context.switchToHttp().getRequest<AuthRequest>();
     const res  = context.switchToHttp().getResponse<Response>();
 
     return new Promise<boolean>((resolve, reject) => {
@@ -137,7 +139,8 @@ export class JwtAuthGuard implements CanActivate {
  */
 export const CurrentUser = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext) => {
-    const request = ctx.switchToHttp().getRequest<Request & { user?: any }>();
+    // AuthRequest already includes the `user` field populated by awesome-node-auth.
+    const request = ctx.switchToHttp().getRequest<AuthRequest>();
     return request.user;
   },
 );
@@ -216,7 +219,8 @@ export class AppModule {}
 //
 //   constructor() {
 //     this.adminRouter = createAdminRouter(_userStore, {
-//       adminSecret: process.env.ADMIN_SECRET ?? 'change-me-admin-secret',
+//       accessPolicy: 'first-user',
+//       jwtSecret: process.env.ACCESS_TOKEN_SECRET ?? 'change-me-access-secret',
 //       linkedAccountsStore: _linkedAccountsStore,
 //       settingsStore: _settingsStore,
 //     });

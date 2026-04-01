@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction, RequestHandler } from 'express';
+import type { AuthRequestHandler } from '../http-types';
 import { IUserStore } from '../interfaces/user-store.interface';
 import { IUserMetadataStore } from '../interfaces/user-metadata-store.interface';
 import { IRolesPermissionsStore } from '../interfaces/roles-permissions-store.interface';
@@ -36,8 +37,12 @@ export interface RouterOptions {
    *   GET  /auth/oauth/:name/callback   — handle provider callback
    */
   oauthStrategies?: GenericOAuthStrategy[];
-  /** Optional rate limiter middleware applied to sensitive auth endpoints (login, refresh, password reset, etc.). */
-  rateLimiter?: RequestHandler;
+  /** Optional rate limiter middleware applied to sensitive auth endpoints (login, refresh, password reset, etc.).
+   *
+   * Accepts any Express `RequestHandler` (e.g. `express-rate-limit`) as well
+   * as the framework-neutral `AuthRequestHandler` type.
+   */
+  rateLimiter?: AuthRequestHandler;
   /**
    * Optional user-metadata store.  When provided, the `GET /me` endpoint
    * will include a `metadata` field with the user's stored key/value pairs.

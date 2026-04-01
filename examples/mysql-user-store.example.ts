@@ -60,7 +60,6 @@ interface DbUser {
   account_link_token_expiry: Date | null;
   account_link_pending_email: string | null;
   account_link_pending_provider: string | null;
-  
 }
 
 // ---- Mapper ---------------------------------------------------------------
@@ -107,7 +106,7 @@ export class MySqlUserStore implements IUserStore {
    *              Accepts `Pool | PoolConnection | Connection` – anything that
    *              exposes an `execute()` method returning `[rows, fields]`.
    */
-  constructor(private readonly pool: any /* mysql2 Pool */) {}
+  constructor(private readonly pool: any /* mysql2 Pool */) { }
 
   // ---- Setup ---------------------------------------------------------------
 
@@ -364,7 +363,7 @@ export class MySqlUserStore implements IUserStore {
   }
 
   async updateLastLogin(userId: string): Promise<void> {
-    await this.pool.execute('UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [userId]); 
+    await this.pool.execute('UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [userId]);
   }
 }
 
@@ -382,7 +381,7 @@ export class MySqlUserStore implements IUserStore {
  *   POST /auth/link-verify   (requires findByAccountLinkToken on IUserStore)
  */
 export class MySqlLinkedAccountsStore implements ILinkedAccountsStore {
-  constructor(private readonly pool: any /* mysql2 Pool */) {}
+  constructor(private readonly pool: any /* mysql2 Pool */) { }
 
   /** Call once at application start to create the table if absent. */
   async init(): Promise<void> {
@@ -459,7 +458,7 @@ export class MySqlLinkedAccountsStore implements ILinkedAccountsStore {
  * Control panel (email verification policy, mandatory 2FA toggle, etc.).
  */
 export class MySqlSettingsStore implements ISettingsStore {
-  constructor(private readonly pool: any /* mysql2 Pool */) {}
+  constructor(private readonly pool: any /* mysql2 Pool */) { }
 
   /** Call once at application start to create the table if absent. */
   async init(): Promise<void> {
