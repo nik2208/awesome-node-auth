@@ -60,17 +60,18 @@
 
     if (cfg.sessionBased) {
       // Session-based login (Email + Password)
-      var email = document.getElementById('email-input').value.trim();
-      if (!email) return;
+      var emailEl = document.getElementById('email-input');
+      var email = emailEl ? emailEl.value.trim() : '';
 
       try {
-        var loginUrl = cfg.authApiPrefix + '/login';
+        // Point to the local /login handler within the admin router
+        var loginUrl = cfg.base + '/login';
         var res = await fetch(loginUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: email, password: secret })
         });
-        
+
         if (!res.ok) {
           var err = await res.json().catch(function () { return { error: res.statusText }; });
           throw new Error(err.error || 'Invalid credentials');
@@ -100,9 +101,18 @@
     }
   }
 
-  function doLogout() {
-    sessionStorage.removeItem('admin_token');
-    location.reload();
+  async function doLogout() {
+    if (cfg.sessionBased) {
+      // Session-based: call the local admin logout endpoint to clear the HTTP-only cookie.
+      try {
+        // Use the local /logout handler within the admin router
+        await fetch(cfg.base + '/logout', { method: 'POST', credentials: 'include' });
+      } catch { /* ignore network errors — still reload */ }
+      location.reload();
+    } else {
+      sessionStorage.removeItem('admin_token');
+      location.reload();
+    }
   }
 
   document.getElementById('secret-input').addEventListener('keydown', function (e) {
@@ -201,14 +211,14 @@
         await Promise.allSettled(users.map(function (u) {
           return api('GET', '/api/users/' + encodeURIComponent(u.id) + '/roles')
             .then(function (d) { _state.users.rolesCache[u.id] = d.roles || []; })
-            .catch(function () {});
+            .catch(function () { });
         }));
       }
       if (FEAT_LINKED_ACCOUNTS && users.length > 0) {
         await Promise.allSettled(users.map(function (u) {
           return api('GET', '/api/users/' + encodeURIComponent(u.id) + '/linked-accounts')
             .then(function (d) { _state.users.linkedAccountsCache[u.id] = d.linkedAccounts || []; })
-            .catch(function () {});
+            .catch(function () { });
         }));
       }
       var colCount = 8 + (FEAT_ROLES ? 1 : 0) + (FEAT_LINKED_ACCOUNTS ? 1 : 0);
@@ -227,9 +237,9 @@
           var linkedAccounts = FEAT_LINKED_ACCOUNTS ? (_state.users.linkedAccountsCache[u.id] || []) : [];
           var linkedCol = FEAT_LINKED_ACCOUNTS
             ? '<td>' + (linkedAccounts.length === 0
-                ? '<span style="color:#9ca3af">\u2014</span>'
-                : badge(linkedAccounts[0].provider, 'purple') + (linkedAccounts.length > 1 ? ' <span style="color:#6b7280;font-size:.75rem">+' + (linkedAccounts.length - 1) + '</span>' : ''))
-              + '</td>'
+              ? '<span style="color:#9ca3af">\u2014</span>'
+              : badge(linkedAccounts[0].provider, 'purple') + (linkedAccounts.length > 1 ? ' <span style="color:#6b7280;font-size:.75rem">+' + (linkedAccounts.length - 1) + '</span>' : ''))
+            + '</td>'
             : '';
           rows += '<tr' + (isOpen ? ' class="tr-open"' : '') + '>'
             + '<td class="cb-col"><input type="checkbox" ' + (isChecked ? 'checked' : '') + ' onchange="toggleSelectUser(' + esc(JSON.stringify(u.id)) + ')"></td>'
@@ -251,9 +261,9 @@
       var openUser = _state.users.openId ? users.find(function (u) { return u.id === _state.users.openId; }) : null;
       var panelHtml = openUser
         ? '<div class="card" style="border-top:3px solid #1a1a2e">'
-          + '<div class="card-header" style="background:#f0f4ff"><h2 style="font-size:.9375rem">\u2699\uFE0F\u00A0Managing: <span style="color:#3730a3;font-weight:700">' + esc(openUser.email) + '</span></h2></div>'
-          + '<div id="user-panel-' + esc(openUser.id) + '" style="padding:1.25rem 1.5rem"><span class="spinner"></span></div>'
-          + '</div>'
+        + '<div class="card-header" style="background:#f0f4ff"><h2 style="font-size:.9375rem">\u2699\uFE0F\u00A0Managing: <span style="color:#3730a3;font-weight:700">' + esc(openUser.email) + '</span></h2></div>'
+        + '<div id="user-panel-' + esc(openUser.id) + '" style="padding:1.25rem 1.5rem"><span class="spinner"></span></div>'
+        + '</div>'
         : '';
       var selCount = _state.users.selected.size;
       var batchBar = '<div class="batch-bar' + (selCount > 0 ? ' visible' : '') + '" id="batch-bar">'
@@ -268,14 +278,14 @@
         + '<th>Verified</th><th>2FA</th><th>Created</th><th></th></tr></thead>';
       var policyCard = FEAT_2FA_POLICY
         ? '<div class="card" style="border-left:4px solid #f59e0b">'
-          + '<div class="card-header" style="background:#fffbeb"><h2 style="font-size:.9375rem">\uD83D\uDD10 2FA Enforcement Policy</h2><span class="meta">Batch operation</span></div>'
-          + '<div style="padding:1rem 1.5rem;display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap">'
-          + '<p style="font-size:.875rem;color:#6b7280;flex:1;min-width:180px">Force all users to activate Two-Factor Authentication. Users without 2FA configured will be blocked at login and prompted to set it up.</p>'
-          + '<div style="display:flex;gap:.5rem;flex-shrink:0">'
-          + '<button class="btn btn-primary" onclick="setBulk2FA(true)">Require 2FA for all</button>'
-          + '<button class="btn" style="background:#f3f4f6;border:1px solid #e5e7eb" onclick="setBulk2FA(false)">Remove requirement</button>'
-          + '</div>'
-          + '</div></div>'
+        + '<div class="card-header" style="background:#fffbeb"><h2 style="font-size:.9375rem">\uD83D\uDD10 2FA Enforcement Policy</h2><span class="meta">Batch operation</span></div>'
+        + '<div style="padding:1rem 1.5rem;display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap">'
+        + '<p style="font-size:.875rem;color:#6b7280;flex:1;min-width:180px">Force all users to activate Two-Factor Authentication. Users without 2FA configured will be blocked at login and prompted to set it up.</p>'
+        + '<div style="display:flex;gap:.5rem;flex-shrink:0">'
+        + '<button class="btn btn-primary" onclick="setBulk2FA(true)">Require 2FA for all</button>'
+        + '<button class="btn" style="background:#f3f4f6;border:1px solid #e5e7eb" onclick="setBulk2FA(false)">Remove requirement</button>'
+        + '</div>'
+        + '</div></div>'
         : '';
       var filterBar = '<div class="filter-bar">'
         + '<input type="text" placeholder="Filter by email or ID\u2026" value="' + esc(_state.users.filter) + '" oninput="_state.users.filter=this.value;_state.users.page=0;_state.users.selected=new Set();renderUsers()" style="max-width:300px">'
@@ -355,14 +365,14 @@
           : userRoles.map(function (r) { return '<span class="badge badge-blue role-chip" title="Click to remove" onclick="removeUserRole(' + esc(JSON.stringify(userId)) + ', ' + esc(JSON.stringify(r)) + ')">' + esc(r) + ' \u2715</span>'; }).join(' ');
         var assignRow = unassigned.length > 0
           ? '<div class="form-row" style="margin-top:.625rem">'
-            + '<select id="role-sel-' + esc(userId) + '" class="form-select">'
-            + unassigned.map(function (r) { return '<option value="' + esc(r.name) + '">' + esc(r.name) + '</option>'; }).join('')
-            + '</select>'
-            + '<button class="btn btn-primary btn-sm" onclick="addUserRole(' + esc(JSON.stringify(userId)) + ')">Assign</button>'
-            + '</div>'
+          + '<select id="role-sel-' + esc(userId) + '" class="form-select">'
+          + unassigned.map(function (r) { return '<option value="' + esc(r.name) + '">' + esc(r.name) + '</option>'; }).join('')
+          + '</select>'
+          + '<button class="btn btn-primary btn-sm" onclick="addUserRole(' + esc(JSON.stringify(userId)) + ')">Assign</button>'
+          + '</div>'
           : '<p style="font-size:.75rem;color:#6b7280;margin-top:.5rem">'
-            + (allRoles.length === 0 ? 'No roles defined yet. Create roles in the Roles & Permissions tab.' : 'All available roles are already assigned.')
-            + '</p>';
+          + (allRoles.length === 0 ? 'No roles defined yet. Create roles in the Roles & Permissions tab.' : 'All available roles are already assigned.')
+          + '</p>';
         sections += '<div class="manage-section">'
           + '<div class="manage-section-title">\uD83D\uDEE1\uFE0F Roles</div>'
           + '<div class="roles-list">' + chipList + '</div>'
@@ -379,16 +389,16 @@
         var tenantChipList = allTenants.filter(function (t) { return assignedIds.has(t.id); }).length === 0
           ? '<span style="color:#9ca3af;font-size:.8125rem">No tenants assigned</span>'
           : allTenants.filter(function (t) { return assignedIds.has(t.id); }).map(function (t) {
-              return '<span class="badge badge-green role-chip" title="Click to remove" onclick="removeUserTenant(' + esc(JSON.stringify(userId)) + ',' + esc(JSON.stringify(t.id)) + ')">' + esc(t.name) + ' \u2715</span>';
-            }).join(' ');
+            return '<span class="badge badge-green role-chip" title="Click to remove" onclick="removeUserTenant(' + esc(JSON.stringify(userId)) + ',' + esc(JSON.stringify(t.id)) + ')">' + esc(t.name) + ' \u2715</span>';
+          }).join(' ');
         var unassignedTenants = allTenants.filter(function (t) { return !assignedIds.has(t.id); });
         var tenantAssignRow = unassignedTenants.length > 0
           ? '<div class="form-row" style="margin-top:.625rem">'
-            + '<select id="tenant-sel-' + esc(userId) + '" class="form-select">'
-            + unassignedTenants.map(function (t) { return '<option value="' + esc(t.id) + '">' + esc(t.name) + '</option>'; }).join('')
-            + '</select>'
-            + '<button class="btn btn-primary btn-sm" onclick="addUserTenant(' + esc(JSON.stringify(userId)) + ')">Assign</button>'
-            + '</div>'
+          + '<select id="tenant-sel-' + esc(userId) + '" class="form-select">'
+          + unassignedTenants.map(function (t) { return '<option value="' + esc(t.id) + '">' + esc(t.name) + '</option>'; }).join('')
+          + '</select>'
+          + '<button class="btn btn-primary btn-sm" onclick="addUserTenant(' + esc(JSON.stringify(userId)) + ')">Assign</button>'
+          + '</div>'
           : '<p style="font-size:.75rem;color:#6b7280;margin-top:.5rem">All available tenants are already assigned.</p>';
         sections += '<div class="manage-section">'
           + '<div class="manage-section-title">\uD83C\uDFE2 Tenants</div>'
@@ -509,17 +519,17 @@
       var rows = sessions.length === 0
         ? '<tr><td colspan="8"><div class="empty">No sessions</div></td></tr>'
         : sessions.map(function (s) {
-            return '<tr>'
-              + '<td style="font-family:monospace;font-size:.75rem">' + esc(s.sessionHandle.slice(0, 12)) + '\u2026</td>'
-              + '<td style="font-family:monospace;font-size:.75rem">' + esc(s.userId) + '</td>'
-              + '<td>' + esc(s.ipAddress || '\u2014') + '</td>'
-              + '<td title="' + esc(s.userAgent || '') + '" style="max-width:160px">' + esc((s.userAgent || '\u2014').slice(0, 40)) + '</td>'
-              + '<td>' + ts(s.createdAt) + '</td>'
-              + '<td>' + ts(s.lastActiveAt) + '</td>'
-              + '<td>' + ts(s.expiresAt) + '</td>'
-              + '<td><button class="btn btn-danger" onclick="revokeSession(' + esc(JSON.stringify(s.sessionHandle)) + ')">Revoke</button></td>'
-              + '</tr>';
-          }).join('');
+          return '<tr>'
+            + '<td style="font-family:monospace;font-size:.75rem">' + esc(s.sessionHandle.slice(0, 12)) + '\u2026</td>'
+            + '<td style="font-family:monospace;font-size:.75rem">' + esc(s.userId) + '</td>'
+            + '<td>' + esc(s.ipAddress || '\u2014') + '</td>'
+            + '<td title="' + esc(s.userAgent || '') + '" style="max-width:160px">' + esc((s.userAgent || '\u2014').slice(0, 40)) + '</td>'
+            + '<td>' + ts(s.createdAt) + '</td>'
+            + '<td>' + ts(s.lastActiveAt) + '</td>'
+            + '<td>' + ts(s.expiresAt) + '</td>'
+            + '<td><button class="btn btn-danger" onclick="revokeSession(' + esc(JSON.stringify(s.sessionHandle)) + ')">Revoke</button></td>'
+            + '</tr>';
+        }).join('');
       main.innerHTML = '<div class="card">'
         + '<div class="card-header"><h2>Active Sessions</h2></div>'
         + '<div class="filter-bar"><input type="text" placeholder="Filter by User ID or IP\u2026" value="' + esc(_state.sessions.filter) + '" oninput="_state.sessions.filter=this.value;_state.sessions.page=0;renderSessions()" style="max-width:300px"><span style="font-size:.8125rem;color:#9ca3af">' + total + ' total</span></div>'
@@ -738,11 +748,11 @@
         + '<div class="toggle-label">Email Verification Policy<small>Controls when users must verify their email address before logging in.</small></div>'
         + '<div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-top:.25rem">'
         + ['none', 'lazy', 'strict'].map(function (m) {
-            return '<label style="display:flex;align-items:center;gap:.35rem;font-size:.875rem;cursor:pointer">'
-              + '<input type="radio" name="evMode" value="' + m + '"' + (evMode === m ? ' checked' : '') + ' onchange="updateEmailVerificationMode(this.value)">'
-              + (m === 'none' ? 'None \u2014 not required' : m === 'lazy' ? 'Lazy \u2014 required after grace period' : 'Strict \u2014 required immediately')
-              + '</label>';
-          }).join('')
+          return '<label style="display:flex;align-items:center;gap:.35rem;font-size:.875rem;cursor:pointer">'
+            + '<input type="radio" name="evMode" value="' + m + '"' + (evMode === m ? ' checked' : '') + ' onchange="updateEmailVerificationMode(this.value)">'
+            + (m === 'none' ? 'None \u2014 not required' : m === 'lazy' ? 'Lazy \u2014 required after grace period' : 'Strict \u2014 required immediately')
+            + '</label>';
+        }).join('')
         + '</div>'
         + '<div id="ev-grace-row" style="display:' + (evMode === 'lazy' ? 'flex' : 'none') + ';align-items:center;gap:.5rem;margin-top:.25rem">'
         + '<label style="font-size:.8125rem">Grace period (days):</label>'
@@ -757,34 +767,34 @@
         + '<div class="card-header"><h2>\uD83E\uDDE9 Webhook Actions</h2><span class="meta">Globally enable or disable injectable actions for inbound webhook scripts</span></div>'
         + '<div style="padding:.75rem 1.5rem;max-width:640px">'
         + (function () {
-            var groups = {};
-            for (var i = 0; i < registeredActions.length; i++) {
-              var a = registeredActions[i];
-              if (!groups[a.category]) groups[a.category] = [];
-              groups[a.category].push(a);
+          var groups = {};
+          for (var i = 0; i < registeredActions.length; i++) {
+            var a = registeredActions[i];
+            if (!groups[a.category]) groups[a.category] = [];
+            groups[a.category].push(a);
+          }
+          var html = '';
+          var cats = Object.keys(groups);
+          for (var ci = 0; ci < cats.length; ci++) {
+            var cat = cats[ci];
+            var acts = groups[cat];
+            html += '<div style="margin-bottom:1rem"><h3 style="font-size:.8125rem;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin-bottom:.5rem">' + esc(cat) + '</h3>';
+            for (var ai = 0; ai < acts.length; ai++) {
+              var a2 = acts[ai];
+              var checked = enabledActions.includes(a2.id);
+              var depsUnmet = (a2.dependsOn || []).some(function (dep) { return !enabledActions.includes(dep); });
+              html += '<div class="toggle-row" style="' + (depsUnmet ? 'opacity:.5;' : '') + '">'
+                + '<div class="toggle-label">' + esc(a2.label)
+                + (a2.dependsOn && a2.dependsOn.length ? '<small style="color:#f59e0b">Requires: ' + a2.dependsOn.map(function (d) { return esc(d); }).join(', ') + '</small>' : '')
+                + '<small>' + esc(a2.description) + '</small>'
+                + '<code style="font-size:.7rem;color:#6b7280">' + esc(a2.id) + '</code></div>'
+                + '<label class="toggle"><input type="checkbox" ' + (checked ? 'checked' : '') + ' ' + (depsUnmet ? 'disabled' : '') + ' onchange="toggleWebhookAction(' + esc(JSON.stringify(a2.id)) + ',this.checked)"><span class="toggle-slider"></span></label>'
+                + '</div>';
             }
-            var html = '';
-            var cats = Object.keys(groups);
-            for (var ci = 0; ci < cats.length; ci++) {
-              var cat = cats[ci];
-              var acts = groups[cat];
-              html += '<div style="margin-bottom:1rem"><h3 style="font-size:.8125rem;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin-bottom:.5rem">' + esc(cat) + '</h3>';
-              for (var ai = 0; ai < acts.length; ai++) {
-                var a2 = acts[ai];
-                var checked = enabledActions.includes(a2.id);
-                var depsUnmet = (a2.dependsOn || []).some(function (dep) { return !enabledActions.includes(dep); });
-                html += '<div class="toggle-row" style="' + (depsUnmet ? 'opacity:.5;' : '') + '">'
-                  + '<div class="toggle-label">' + esc(a2.label)
-                  + (a2.dependsOn && a2.dependsOn.length ? '<small style="color:#f59e0b">Requires: ' + a2.dependsOn.map(function (d) { return esc(d); }).join(', ') + '</small>' : '')
-                  + '<small>' + esc(a2.description) + '</small>'
-                  + '<code style="font-size:.7rem;color:#6b7280">' + esc(a2.id) + '</code></div>'
-                  + '<label class="toggle"><input type="checkbox" ' + (checked ? 'checked' : '') + ' ' + (depsUnmet ? 'disabled' : '') + ' onchange="toggleWebhookAction(' + esc(JSON.stringify(a2.id)) + ',this.checked)"><span class="toggle-slider"></span></label>'
-                  + '</div>';
-              }
-              html += '</div>';
-            }
-            return html;
-          })()
+            html += '</div>';
+          }
+          return html;
+        })()
         + '</div></div>';
 
       var ui = settings.ui || {};
@@ -898,7 +908,7 @@
       await api('PUT', '/api/settings', { [key]: value });
       flash('Setting updated');
       if (key === 'require2FA' && FEAT_2FA_POLICY) {
-        await api('POST', '/api/2fa-policy', { required: value }).catch(function () {});
+        await api('POST', '/api/2fa-policy', { required: value }).catch(function () { });
       }
     } catch (e) {
       flash(e.message, 'error');
@@ -1191,13 +1201,13 @@
       var actionCheckboxes = enabledActions.length === 0
         ? '<p style="font-size:.8125rem;color:#9ca3af">No actions are globally enabled. Enable them in the Control tab first.</p>'
         : enabledActions.map(function (id) {
-            var meta = allActions.find(function (a) { return a.id === id; });
-            var label = meta ? esc(meta.label) : esc(id);
-            return '<label style="display:flex;align-items:center;gap:.5rem;font-size:.8125rem;padding:.25rem 0;cursor:pointer">'
-              + '<input type="checkbox" class="wh-action-cb" value="' + esc(id) + '">'
-              + label + ' <code style="font-size:.7rem;color:#6b7280">(' + esc(id) + ')</code>'
-              + '</label>';
-          }).join('');
+          var meta = allActions.find(function (a) { return a.id === id; });
+          var label = meta ? esc(meta.label) : esc(id);
+          return '<label style="display:flex;align-items:center;gap:.5rem;font-size:.8125rem;padding:.25rem 0;cursor:pointer">'
+            + '<input type="checkbox" class="wh-action-cb" value="' + esc(id) + '">'
+            + label + ' <code style="font-size:.7rem;color:#6b7280">(' + esc(id) + ')</code>'
+            + '</label>';
+        }).join('');
 
       var drawer = '<div id="wh-drawer" style="display:none;position:fixed;right:0;top:0;height:100%;width:480px;background:white;box-shadow:-4px 0 24px rgba(0,0,0,.15);z-index:100;overflow-y:auto;padding:1.5rem">'
         + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">'
@@ -1349,7 +1359,7 @@
   function renderTemplatesUi() {
     var main = document.getElementById('main');
     var isMail = _state.templates.type === 'mail';
-    
+
     var html = '<div class="card">'
       + '<div class="card-header">'
       + '<h2>Email & UI Templates</h2>'
@@ -1367,14 +1377,14 @@
       + '</div>'
       + '</div>'
       + '</div>';
-    
+
     main.innerHTML = html;
     if (_state.templates.selectedId) {
       if (isMail) {
-        var t = _state.templates.mailTemplates.find(function(x) { return x.id === _state.templates.selectedId; });
+        var t = _state.templates.mailTemplates.find(function (x) { return x.id === _state.templates.selectedId; });
         if (t) editMailTemplate(t.id);
       } else {
-        var u = _state.templates.uiTranslations.find(function(x) { return x.page === _state.templates.selectedId; });
+        var u = _state.templates.uiTranslations.find(function (x) { return x.page === _state.templates.selectedId; });
         if (u) editUiTranslation(u.page);
       }
     }
@@ -1382,8 +1392,8 @@
 
   function renderMailTemplateList() {
     var items = ['magic-link', 'password-reset', 'email-verification', 'invitation', 'otp'];
-    return items.map(function(id) {
-      var isCustom = _state.templates.mailTemplates.some(function(t) { return t.id === id; });
+    return items.map(function (id) {
+      var isCustom = _state.templates.mailTemplates.some(function (t) { return t.id === id; });
       var active = _state.templates.selectedId === id ? ' active' : '';
       return '<div class="template-item' + active + '" onclick="editMailTemplate(\'' + id + '\')">'
         + id + (isCustom ? ' <small style="color:#10b981">(custom)</small>' : ' <small style="color:#9ca3af">(default)</small>')
@@ -1393,8 +1403,8 @@
 
   function renderUiTranslationList() {
     var pages = ['login', 'register', 'forgot-password', 'reset-password', 'verify-email', '2fa', 'sms-login', 'common'];
-    return pages.map(function(page) {
-      var isCustom = _state.templates.uiTranslations.some(function(u) { return u.page === page; });
+    return pages.map(function (page) {
+      var isCustom = _state.templates.uiTranslations.some(function (u) { return u.page === page; });
       var active = _state.templates.selectedId === page ? ' active' : '';
       return '<div class="template-item' + active + '" onclick="editUiTranslation(\'' + page + '\')">'
         + page + (isCustom ? ' <small style="color:#10b981">(custom)</small>' : ' <small style="color:#9ca3af">(default)</small>')
@@ -1405,11 +1415,11 @@
   function editMailTemplate(id) {
     _state.templates.selectedId = id;
     var container = document.getElementById('template-editor');
-    var t = _state.templates.mailTemplates.find(function(x) { return x.id === id; }) || { id: id, baseHtml: '', baseText: '', translations: {} };
-    
+    var t = _state.templates.mailTemplates.find(function (x) { return x.id === id; }) || { id: id, baseHtml: '', baseText: '', translations: {} };
+
     // In search of default content if empty
     var defaultHint = 'Default template will be used if left empty.';
-    
+
     container.innerHTML = '<div class="template-editor-header">'
       + '<h3>Editing: ' + id + '</h3>'
       + '<button class="btn btn-primary btn-sm" onclick="saveMailTemplate(\'' + id + '\')">Save Changes</button>'
@@ -1422,9 +1432,9 @@
       + '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">i18n Interpolations (JSON)</label>'
       + '<textarea id="tpl-i18n" class="template-editor-textarea" style="height:150px" placeholder=\'{"en": {"subject": "Reset Password", "title": "Hello!"}}\'>' + esc(JSON.stringify(t.translations || {}, null, 2)) + '</textarea></div>'
       + '</div>';
-      
+
     // Update active class in list
-    document.querySelectorAll('.template-list .template-item').forEach(function(el) {
+    document.querySelectorAll('.template-list .template-item').forEach(function (el) {
       el.classList.toggle('active', el.textContent.startsWith(id));
     });
   }
@@ -1432,8 +1442,8 @@
   function editUiTranslation(page) {
     _state.templates.selectedId = page;
     var container = document.getElementById('template-editor');
-    var u = _state.templates.uiTranslations.find(function(x) { return x.page === page; }) || { page: page, translations: {} };
-    
+    var u = _state.templates.uiTranslations.find(function (x) { return x.page === page; }) || { page: page, translations: {} };
+
     container.innerHTML = '<div class="template-editor-header">'
       + '<h3>UI Translations: ' + page + '</h3>'
       + '<button class="btn btn-primary btn-sm" onclick="saveUiTranslation(\'' + page + '\')">Save Changes</button>'
@@ -1444,8 +1454,8 @@
       + '</div>'
       + '<textarea id="ui-i18n" class="template-editor-textarea" style="flex:1" placeholder=\'{"en": {"site_name": "Auth", "login_title": "Sign In"}}\'>' + esc(JSON.stringify(u.translations || {}, null, 2)) + '</textarea>'
       + '</div>';
-      
-    document.querySelectorAll('.template-list .template-item').forEach(function(el) {
+
+    document.querySelectorAll('.template-list .template-item').forEach(function (el) {
       el.classList.toggle('active', el.textContent.startsWith(page));
     });
   }
@@ -1456,7 +1466,7 @@
       var baseText = document.getElementById('tpl-text').value;
       var i18nRaw = document.getElementById('tpl-i18n').value;
       var translations = i18nRaw ? JSON.parse(i18nRaw) : {};
-      
+
       await api('POST', '/api/templates/mail', { id: id, baseHtml: baseHtml, baseText: baseText, translations: translations });
       flash('Mail template saved');
       renderTemplates();
@@ -1467,7 +1477,7 @@
     try {
       var i18nRaw = document.getElementById('ui-i18n').value;
       var translations = i18nRaw ? JSON.parse(i18nRaw) : {};
-      
+
       await api('POST', '/api/templates/ui', { page: page, translations: translations });
       flash('UI translations saved');
       renderTemplates();

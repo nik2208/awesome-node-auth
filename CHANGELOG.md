@@ -5,6 +5,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.8.2] — 2026-04-01
+
+### Added
+- **Self-Contained Admin Authentication** — the Admin UI now handles its own login and logout via internal `POST /admin/login` and `POST /admin/logout` routes. This removes dependencies on the main application's auth router, making the Admin Panel truly autonomous.
+- **Root/Bootstrap User Support** — added `AdminOptions.rootUser` (email + password hash) for permanent emergency access.
+- **Bootstrap Mode** — if `adminSecret` is configured, the Admin login form allows password-only access (leaving email blank).
+- **Dynamic Cookie Prefix Detection** — the admin guard now automatically detects and handles secure cookie prefixes (`__Host-`, `__Secure-`) based on the environment and `AdminOptions.cookiePrefix`.
+
+### Fixed
+- **Admin UI Logout** — fixed a regression where the logout button would attempt to call the main auth API instead of the local admin logout handler.
+- **Cookie Prefix Conflicts** — resolved issues where admin sessions were not persisted correctly when running behind a proxy or in production with secure cookies.
+
+---
+
 ## [1.8.1] — 2026-04-01
 
 ### Added

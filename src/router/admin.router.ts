@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import { IUserStore } from '../interfaces/user-store.interface';
 import { ISessionStore } from '../interfaces/session-store.interface';
 import { IRolesPermissionsStore } from '../interfaces/roles-permissions-store.interface';
@@ -94,6 +95,27 @@ export interface AdminOptions {
    * users table and the Linked Accounts section in the user detail panel.
    */
   linkedAccountsStore?: ILinkedAccountsStore;
+
+  /**
+   * Optional prefix for the authentication cookies (e.g. `__Host-` or `__Secure-`).
+   * If provided, the guard will look for `${cookiePrefix}accessToken`.
+   * If not provided, it will try the default variants.
+   *
+   * @since 1.8.1
+   */
+  cookiePrefix?: string;
+
+  /**
+   * Optional root user for the Admin UI.
+   * Useful for bootstrapping or in environments without local users.
+   *
+   * @since 1.8.1
+   */
+  rootUser?: {
+    email: string;
+    /** Bcrypt-hashed password. */
+    passwordHash: string;
+  };
 
   /**
    * Optional API Key store — enables the 🔑 API Keys tab in the admin UI.
@@ -193,6 +215,7 @@ function buildPolicyGuard(
   jwtSecret: string | undefined,
   rbacStore?: IRolesPermissionsStore,
   loginPath?: string,
+  cookiePrefix?: string,
 ): RequestHandler {
   return async (req: Request, res: Response, next) => {
     // 'open' — no auth required at all
@@ -206,7 +229,13 @@ function buildPolicyGuard(
       const bearerToken = req.headers.authorization?.startsWith('Bearer ')
         ? req.headers.authorization.slice(7)
         : undefined;
-      const cookieToken = (req.cookies as Record<string, string> | undefined)?.accessToken;
+
+      const cookies = (req.cookies as Record<string, string> | undefined) ?? {};
+      const cookieName = cookiePrefix ? `${cookiePrefix}accessToken` : undefined;
+      const cookieToken = cookieName
+        ? cookies[cookieName]
+        : (cookies['__Host-accessToken'] ?? cookies['__Secure-accessToken'] ?? cookies['accessToken']);
+
       const rawToken = bearerToken ?? cookieToken;
 
       if (rawToken) {
@@ -250,6 +279,18 @@ function buildPolicyGuard(
     const userId = payload['sub'] as string | undefined;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    // Handle root/bootstrap override
+    if (payload['isRoot'] === true) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (req as any).user = {
+        id: userId,
+        email: (payload['email'] as string) || 'root@admin',
+        isAdmin: true,
+      } as BaseUser;
+      next();
       return;
     }
 
@@ -324,6 +365,8 @@ function buildAdminHtml(baseUrl: string, features: {
   showLogin?: boolean;
   /** Path to the main auth API router (for login calls). */
   authApiPrefix?: string;
+  /** Optional prefix for cookies. */
+  cookiePrefix?: string;
 }): string {
   // Config object injected as window.__ADMIN_CONFIG__ and read by admin.js.
   const cfg = JSON.stringify({
@@ -342,6 +385,7 @@ function buildAdminHtml(baseUrl: string, features: {
     uploadBaseUrl: features.uploadBaseUrl,
     sessionBased: !!features.sessionBased,
     authApiPrefix: features.authApiPrefix || '/auth',
+    cookiePrefix: features.cookiePrefix,
   });
 
   const showLogin = features.showLogin || !features.sessionBased;
@@ -417,6 +461,7 @@ export function createAdminRouter(
       options.jwtSecret,
       options.rbacStore,
       options.loginPath,
+      options.cookiePrefix,
     );
     sessionBased = options.accessPolicy !== 'open';
   } else if (options.adminSecret) {
@@ -429,6 +474,82 @@ export function createAdminRouter(
       'Admin routes are unprotected. Set accessPolicy in production.\n',
     );
     guard = (_req, _res, next) => next();
+  }
+
+  const secret = options.jwtSecret;
+
+  // ── Local Login Handler (Self-contained Auth) ──────────────────────────
+  if (sessionBased && secret) {
+    router.post('/login', async (req, res) => {
+      const { email, password } = req.body;
+      if (!password) {
+        res.status(400).json({ error: 'Password required' });
+        return;
+      }
+
+      let authedUser: { id: string; email: string; isRoot?: boolean } | null = null;
+
+      // 1. Check Root User
+      if (options.rootUser && email === options.rootUser.email) {
+        if (await bcrypt.compare(password, options.rootUser.passwordHash)) {
+          authedUser = { id: 'root', email: options.rootUser.email, isRoot: true };
+        }
+      }
+
+      // 2. Check Admin Secret (Bootstrap override)
+      if (!authedUser && options.adminSecret && (!email || email === 'admin')) {
+        if (password === options.adminSecret) {
+          authedUser = { id: 'admin', email: 'admin@bootstrap', isRoot: true };
+        }
+      }
+
+      // 3. Fallback to UserStore (standard login)
+      if (!authedUser && email) {
+        try {
+          const user = await userStore.findByEmail(email);
+          if (user && user.password && await bcrypt.compare(password, user.password)) {
+            authedUser = { id: user.id || '', email: user.email };
+          }
+        } catch { /* ignore */ }
+      }
+
+      if (!authedUser) {
+        res.status(401).json({ error: 'Invalid credentials' });
+        return;
+      }
+
+      // Sign JWT
+      const token = jwt.sign(
+        { sub: authedUser.id, email: authedUser.email, isRoot: authedUser.isRoot },
+        secret,
+        { expiresIn: '24h' },
+      );
+
+      // Set cookie
+      const cookieName = (options.cookiePrefix ?? '') + 'accessToken';
+      const cookieOptions = (options as any).cookieOptions || {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+      };
+      res.cookie(cookieName, token, cookieOptions);
+
+      res.json({ success: true });
+    });
+
+    // ── Local Logout Handler ───────────────────────────────────────────────
+    router.post('/logout', (req, res) => {
+      const cookieName = (options.cookiePrefix ?? '') + 'accessToken';
+      const cookieOptions = (options as any).cookieOptions || {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+      };
+      res.clearCookie(cookieName, cookieOptions);
+      res.json({ success: true });
+    });
   }
 
   // Resolve effective uploadBaseUrl for both UI script and API responses
@@ -502,33 +623,35 @@ export function createAdminRouter(
   // When using legacy adminSecret: the HTML is served without auth (the client-side JS handles login).
   const htmlRoute: RequestHandler[] = sessionBased
     ? [guard, (_req: Request, res: Response) => {
-        const needsAuth = ((_req as any).adminNeedsAuth === true);
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-        res.send(buildAdminHtml(_req.baseUrl, { 
-          sessions: featSessions, roles: featRoles, tenants: featTenants, metadata: featMetadata, 
-          twoFAPolicy: featTwoFAPolicy, control: featControl, linkedAccounts: featLinkedAccounts, 
-          apiKeys: featApiKeys, webhooks: featWebhooks, templates: featTemplates, upload: featUpload, 
-          uploadBaseUrl: effectiveUploadBaseUrl, sessionBased, 
-          showLogin: needsAuth,
-          authApiPrefix: options.apiPrefix,
-        }));
-      }]
+      const needsAuth = ((_req as any).adminNeedsAuth === true);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.send(buildAdminHtml(_req.baseUrl, {
+        sessions: featSessions, roles: featRoles, tenants: featTenants, metadata: featMetadata,
+        twoFAPolicy: featTwoFAPolicy, control: featControl, linkedAccounts: featLinkedAccounts,
+        apiKeys: featApiKeys, webhooks: featWebhooks, templates: featTemplates, upload: featUpload,
+        uploadBaseUrl: effectiveUploadBaseUrl, sessionBased,
+        showLogin: needsAuth,
+        authApiPrefix: options.apiPrefix,
+        cookiePrefix: options.cookiePrefix,
+      }));
+    }]
     : [(_req: Request, res: Response) => {
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-        res.send(buildAdminHtml(_req.baseUrl, { 
-          sessions: featSessions, roles: featRoles, tenants: featTenants, metadata: featMetadata, 
-          twoFAPolicy: featTwoFAPolicy, control: featControl, linkedAccounts: featLinkedAccounts, 
-          apiKeys: featApiKeys, webhooks: featWebhooks, templates: featTemplates, upload: featUpload, 
-          uploadBaseUrl: effectiveUploadBaseUrl, sessionBased,
-          authApiPrefix: options.apiPrefix,
-        }));
-      }];
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.send(buildAdminHtml(_req.baseUrl, {
+        sessions: featSessions, roles: featRoles, tenants: featTenants, metadata: featMetadata,
+        twoFAPolicy: featTwoFAPolicy, control: featControl, linkedAccounts: featLinkedAccounts,
+        apiKeys: featApiKeys, webhooks: featWebhooks, templates: featTemplates, upload: featUpload,
+        uploadBaseUrl: effectiveUploadBaseUrl, sessionBased,
+        authApiPrefix: options.apiPrefix,
+        cookiePrefix: options.cookiePrefix,
+      }));
+    }];
   router.get('/', ...htmlRoute);
 
   // GET /admin/api/ping — health / auth check
