@@ -13,7 +13,7 @@
 import express from 'express';
 import { MongoClient } from 'mongodb';
 import rateLimit from 'express-rate-limit';
-import { AuthConfigurator, PasswordService, AuthError } from 'awesome-node-auth';
+import { AuthConfigurator, PasswordService, AuthError, MemoryTemplateStore } from 'awesome-node-auth';
 import type { AuthConfig } from 'awesome-node-auth';
 import { createAdminRouter } from 'awesome-node-auth';
 import type { AdminOptions } from 'awesome-node-auth';
@@ -85,8 +85,13 @@ async function main(): Promise<void> {
   const userStore = new MongoDbUserStore(client.db(dbName));
   await userStore.init(); // create indexes
 
+  // Template store — enables the 📧 Email & UI Templates tab in the admin panel.
+  // Swap MemoryTemplateStore for a MongoDB-backed implementation in production
+  // (see examples/mongodb-user-store.example.ts → MongoDbTemplateStore).
+  const templateStore = new MemoryTemplateStore();
+
   const passwordService = new PasswordService();
-  const auth = new AuthConfigurator(authConfig, userStore);
+  const auth = new AuthConfigurator({ ...authConfig, templateStore }, userStore);
   const app  = express();
   app.use(express.json());
 
@@ -117,6 +122,7 @@ async function main(): Promise<void> {
   const adminOptions: AdminOptions = {
     jwtSecret: process.env.ACCESS_TOKEN_SECRET ?? 'dev-secret',
     accessPolicy: 'first-user',
+    templateStore,  // enables 📧 Email & UI Templates tab (live editor + preview)
     // rbacStore,
     // sessionStore,
     // tenantStore,

@@ -42,10 +42,10 @@
 // 1. lib/auth.ts  (singleton)
 // ---------------------------------------------------------------------------
 
-import { AuthConfigurator, AuthConfig, IUserStore, createAuthRouter, createAdminRouter } from '../src/index';
+import { AuthConfigurator, AuthConfig, IUserStore, createAuthRouter, createAdminRouter, MemoryTemplateStore } from '../src/index';
 
 // Replace InMemoryUserStore with your real IUserStore implementation.
-import { InMemoryUserStore, InMemoryLinkedAccountsStore, InMemorySettingsStore } from './in-memory-user-store';
+import { InMemoryUserStore, InMemoryLinkedAccountsStore, InMemorySettingsStore, InMemoryTemplateStore } from './in-memory-user-store';
 
 export const authConfig: AuthConfig = {
   accessTokenSecret:  process.env.ACCESS_TOKEN_SECRET  ?? 'change-me-access',
@@ -68,13 +68,15 @@ export const authConfig: AuthConfig = {
 export const userStore: IUserStore = new InMemoryUserStore();
 export const linkedAccountsStore = new InMemoryLinkedAccountsStore();
 export const settingsStore = new InMemorySettingsStore();
+// Template store — enables the 📧 Email & UI Templates tab in the admin panel.
+export const templateStore = new InMemoryTemplateStore();
 
 // AuthConfigurator is cheap to create but should be a singleton to avoid
 // re-creating services on every hot-reload cycle in development.
 let _auth: AuthConfigurator | undefined;
 
 export function getAuth(): AuthConfigurator {
-  if (!_auth) _auth = new AuthConfigurator(authConfig, userStore);
+  if (!_auth) _auth = new AuthConfigurator({ ...authConfig, templateStore }, userStore);
   return _auth;
 }
 
@@ -88,6 +90,7 @@ export function getAuth(): AuthConfigurator {
 // The admin UI is available at /admin in your browser.
 // Pass linkedAccountsStore to see linked accounts in the Users table.
 // Pass uploadDir + uploadBaseUrl to enable file upload for logo/background.
+// Pass templateStore to enable the 📧 Email & UI Templates tab.
 //
 
 export const adminRouter = createAdminRouter(userStore as InMemoryUserStore, {
@@ -95,6 +98,7 @@ export const adminRouter = createAdminRouter(userStore as InMemoryUserStore, {
   jwtSecret: process.env.ACCESS_TOKEN_SECRET ?? 'change-me-access-secret',
   linkedAccountsStore,
   settingsStore,
+  templateStore,  // enables 📧 Email & UI Templates tab (live editor + preview)
   // Optional: enable file upload in the UI Customization panel.
   // uploadDir: path.join(process.cwd(), 'public', 'uploads'),
   // uploadBaseUrl: '/auth/ui/assets/uploads',

@@ -1,4 +1,4 @@
-import { Router, Request, Response, RequestHandler } from 'express';
+import { Router, Request, Response, RequestHandler, json as expressJson } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -203,6 +203,53 @@ function adminAuth(secret: string): RequestHandler {
 }
 
 /**
+ * Compute the cookie name for the admin session token, mirroring the same
+ * `__Host-` / `__Secure-` prefix logic that TokenService uses for regular
+ * auth tokens.  This ensures the guard reads exactly the cookie that was
+ * written by the admin login handler — and vice-versa — even on HTTPS.
+ *
+ * Rules (identical to TokenService.getCookieName):
+ *   - HTTP  (isSecure=false) → plain name, e.g. `accessToken`
+ *   - HTTPS, path=/, no domain → `__Host-accessToken`  (most secure)
+ *   - HTTPS, custom path/domain → `__Secure-accessToken`
+ *
+ * An explicit `cookiePrefix` from AdminOptions always overrides the prefix.
+ */
+function resolveAdminCookieName(
+  isSecure: boolean,
+  cookiePrefix?: string,
+  cookiePath?: string,
+  cookieDomain?: string,
+): string {
+  if (cookiePrefix !== undefined) {
+    // Explicit override — respect whatever the caller configured.
+    return cookiePrefix + 'accessToken';
+  }
+  if (!isSecure) return 'accessToken';
+  const isPathRoot = !cookiePath || cookiePath === '/';
+  if (isPathRoot && !cookieDomain) return '__Host-accessToken';
+  return '__Secure-accessToken';
+}
+
+/**
+ * Enforce the browser requirements for a `__Host-` prefixed cookie:
+ *  - Secure flag must be set
+ *  - Path must be `/`
+ *  - Domain attribute must be absent
+ *
+ * Returns a new object (shallow copy of `opts`) with the required attributes
+ * applied when the cookie name starts with `__Host-`, leaving `opts` untouched.
+ */
+function applyHostCookieRequirements(cookieName: string, opts: Record<string, unknown>): Record<string, unknown> {
+  if (!cookieName.startsWith('__Host-')) return opts;
+  const result = { ...opts };
+  result.secure = true;
+  result.path = '/';
+  delete result.domain;
+  return result;
+}
+
+/**
  * JWT-based guard that enforces `AdminAccessPolicy`.
  *
  * For HTML requests without a valid session, issues a 302 redirect to the
@@ -230,7 +277,17 @@ function buildPolicyGuard(
         ? req.headers.authorization.slice(7)
         : undefined;
 
-      const cookies = (req.cookies as Record<string, string> | undefined) ?? {};
+      // Prefer cookie-parser parsed cookies; fall back to raw Cookie header parsing
+      // in case the app does not use cookie-parser middleware.
+      let cookies = (req.cookies as Record<string, string> | undefined);
+      if (!cookies) {
+        const cookieHeader = req.headers.cookie ?? '';
+        cookies = cookieHeader.split(';').reduce<Record<string, string>>((acc, part) => {
+          const [key, ...val] = part.trim().split('=');
+          if (key) acc[key.trim()] = decodeURIComponent(val.join('='));
+          return acc;
+        }, {});
+      }
       const cookieName = cookiePrefix ? `${cookiePrefix}accessToken` : undefined;
       const cookieToken = cookieName
         ? cookies[cookieName]
@@ -448,6 +505,9 @@ export function createAdminRouter(
 ): Router {
   const router = Router();
 
+  // Ensure request bodies are parsed even if the parent app has no global body parser.
+  router.use(expressJson());
+
   // ── Select the appropriate authentication guard ──────────────────────────
   // Priority: accessPolicy (new) > adminSecret (legacy) > open (no auth).
   let guard: RequestHandler;
@@ -525,14 +585,30 @@ export function createAdminRouter(
         { expiresIn: '24h' },
       );
 
-      // Set cookie
-      const cookieName = (options.cookiePrefix ?? '') + 'accessToken';
-      const cookieOptions = (options as any).cookieOptions || {
+      // Determine Secure flag dynamically: honour explicit cookieOptions if provided,
+      // otherwise use the actual protocol of the request so the cookie works correctly
+      // whether the app is behind an HTTPS-terminating reverse proxy or served directly.
+      const isSecure = (req as any).secure === true || req.headers['x-forwarded-proto'] === 'https';
+
+      // Fix: use the same __Host- / __Secure- naming logic as TokenService so
+      // the guard can always read back exactly the cookie that was just written,
+      // even when a regular-auth session (e.g. __Host-accessToken) is also active.
+      const explicitOptions: any = (options as any).cookieOptions;
+      const cookieName = resolveAdminCookieName(
+        isSecure,
+        options.cookiePrefix,
+        explicitOptions?.path,
+        explicitOptions?.domain,
+      );
+      const cookieOptions = applyHostCookieRequirements(cookieName, explicitOptions || {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isSecure,
+        sameSite: 'lax' as const,
         path: '/',
-      };
+        // Align maxAge with the JWT expiresIn ('24h') so the cookie persists across
+        // browser restarts and does not vanish when the tab is closed.
+        maxAge: 24 * 60 * 60 * 1000,
+      });
       res.cookie(cookieName, token, cookieOptions);
 
       res.json({ success: true });
@@ -540,13 +616,20 @@ export function createAdminRouter(
 
     // ── Local Logout Handler ───────────────────────────────────────────────
     router.post('/logout', (req, res) => {
-      const cookieName = (options.cookiePrefix ?? '') + 'accessToken';
-      const cookieOptions = (options as any).cookieOptions || {
+      const isSecure = (req as any).secure === true || req.headers['x-forwarded-proto'] === 'https';
+      const explicitOptions: any = (options as any).cookieOptions;
+      const cookieName = resolveAdminCookieName(
+        isSecure,
+        options.cookiePrefix,
+        explicitOptions?.path,
+        explicitOptions?.domain,
+      );
+      const cookieOptions = applyHostCookieRequirements(cookieName, explicitOptions || {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isSecure,
+        sameSite: 'lax' as const,
         path: '/',
-      };
+      });
       res.clearCookie(cookieName, cookieOptions);
       res.json({ success: true });
     });

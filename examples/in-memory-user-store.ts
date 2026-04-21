@@ -10,9 +10,10 @@
  * Also exports:
  *  - InMemoryLinkedAccountsStore — ILinkedAccountsStore for flexible OAuth account linking
  *  - InMemorySettingsStore       — ISettingsStore for global auth settings (admin panel)
+ *  - InMemoryTemplateStore       — ITemplateStore for custom email templates + UI i18n (admin panel)
  */
 
-import { IUserStore, BaseUser, ILinkedAccountsStore, LinkedAccount, ISettingsStore, AuthSettings } from '../src/index';
+import { IUserStore, BaseUser, ILinkedAccountsStore, LinkedAccount, ISettingsStore, AuthSettings, MemoryTemplateStore } from '../src/index';
 
 export class InMemoryUserStore implements IUserStore {
   private users = new Map<string, BaseUser>();
@@ -266,3 +267,39 @@ export class InMemorySettingsStore implements ISettingsStore {
     this.settings = { ...this.settings, ...updates };
   }
 }
+
+// ---------------------------------------------------------------------------
+// InMemoryTemplateStore
+// ---------------------------------------------------------------------------
+
+/**
+ * In-memory ITemplateStore — stores custom email templates and UI i18n strings
+ * for the admin panel Email & UI Templates tab.
+ *
+ * This is a thin re-export of the built-in `MemoryTemplateStore` included with
+ * awesome-node-auth, so you can import it alongside the other in-memory stores.
+ *
+ * Usage:
+ *   const templateStore = new InMemoryTemplateStore();
+ *
+ *   // Wire to AuthConfigurator so MailerService uses stored templates:
+ *   const auth = new AuthConfigurator({ ...authConfig, templateStore }, userStore);
+ *
+ *   // Wire to buildUiRouter so stored UI translations are injected at render time:
+ *   app.use('/auth/ui', buildUiRouter({ authConfig, templateStore, ... }));
+ *
+ *   // Wire to createAdminRouter to enable the 📧 Email & UI Templates tab:
+ *   app.use('/admin', createAdminRouter(userStore, {
+ *     accessPolicy: 'first-user',
+ *     jwtSecret,
+ *     templateStore,
+ *   }));
+ *
+ * Built-in mail template IDs (must match MailerService call sites exactly):
+ *   'magic-link' | 'password-reset' | 'verify-email' | 'welcome' | 'email-changed' | 'invitation'
+ *
+ * Built-in UI page IDs:
+ *   'login' | 'register' | 'forgot-password' | 'reset-password' |
+ *   'verify-email' | '2fa' | 'magic-link' | 'link-verify' | 'account-conflict'
+ */
+export class InMemoryTemplateStore extends MemoryTemplateStore {}

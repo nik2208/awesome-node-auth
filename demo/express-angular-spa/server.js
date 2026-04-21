@@ -18,7 +18,7 @@ const express      = require('express');
 const cookieParser = require('cookie-parser');
 const path         = require('path');
 
-const { AuthConfigurator, createAdminRouter, PasswordService, AuthError } = require('awesome-node-auth');
+const { AuthConfigurator, createAdminRouter, PasswordService, AuthError, MemoryTemplateStore } = require('awesome-node-auth');
 
 const passwordService = new PasswordService();
 
@@ -111,6 +111,9 @@ app.use((req, res, next) => {
 
 const userStore = new InMemoryUserStore();
 
+// Template store — enables the 📧 Email & UI Templates tab in the admin panel.
+const templateStore = new MemoryTemplateStore();
+
 const authConfig = {
   accessTokenSecret:  process.env.ACCESS_TOKEN_SECRET  || 'demo-access-secret-change-in-production',
   refreshTokenSecret: process.env.REFRESH_TOKEN_SECRET || 'demo-refresh-secret-change-in-production',
@@ -122,7 +125,10 @@ const authConfig = {
   },
 };
 
-const auth = new AuthConfigurator(authConfig, userStore);
+const auth = new AuthConfigurator(
+  { ...authConfig, templateStore },  // templateStore enables email template overrides
+  userStore,
+);
 
 app.use('/auth', auth.router({
   onRegister: async (data) => {
@@ -139,6 +145,7 @@ app.use('/auth', auth.router({
 app.use('/admin', createAdminRouter(userStore, {
   jwtSecret: process.env.ACCESS_TOKEN_SECRET || 'dev-secret',
   accessPolicy: 'first-user',
+  templateStore,  // enables 📧 Email & UI Templates tab (live editor + preview)
 }));
 
 // ── Serve compiled Angular SPA in production ─────────────────────────────────

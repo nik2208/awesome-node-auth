@@ -52,7 +52,7 @@ import {
   NestFactory,
 } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
-import { AuthConfigurator, AuthConfig, IUserStore, createAuthRouter, createAdminRouter } from '../src/index';
+import { AuthConfigurator, AuthConfig, IUserStore, createAuthRouter, createAdminRouter, MemoryTemplateStore } from '../src/index';
 import type { AuthRequest } from '../src/http-types';
 
 // ---- Token / constants ----------------------------------------------------
@@ -197,6 +197,9 @@ const authConfig: AuthConfig = {
 const _userStore = new InMemoryUserStore();
 const _linkedAccountsStore = new InMemoryLinkedAccountsStore();
 const _settingsStore = new InMemorySettingsStore();
+// Template store — enables the 📧 Email & UI Templates tab in the admin panel.
+// Swap MemoryTemplateStore for a DB-backed implementation in production.
+const _templateStore = new MemoryTemplateStore();
 
 @Module({
   imports: [
@@ -223,6 +226,7 @@ export class AppModule {}
 //       jwtSecret: process.env.ACCESS_TOKEN_SECRET ?? 'change-me-access-secret',
 //       linkedAccountsStore: _linkedAccountsStore,
 //       settingsStore: _settingsStore,
+//       templateStore: _templateStore,  // enables 📧 Email & UI Templates tab
 //     });
 //   }
 //

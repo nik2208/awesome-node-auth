@@ -10,7 +10,7 @@
     "serve": "next start"
   },
   "dependencies": {
-    "awesome-node-auth": "^1.8.3",
+    "awesome-node-auth": "^1.8.4",
     "next": "^15.3.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

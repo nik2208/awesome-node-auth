@@ -6,15 +6,17 @@
  *
  * Usage:
  *   import mysql from 'mysql2/promise';
- *   import { MySqlUserStore, MySqlLinkedAccountsStore, MySqlSettingsStore } from './mysql-user-store.example';
+ *   import { MySqlUserStore, MySqlLinkedAccountsStore, MySqlSettingsStore, MySqlTemplateStore } from './mysql-user-store.example';
  *
  *   const pool = mysql.createPool({ … });
  *   const userStore = new MySqlUserStore(pool);
  *   const linkedAccountsStore = new MySqlLinkedAccountsStore(pool);
  *   const settingsStore = new MySqlSettingsStore(pool);
+ *   const templateStore = new MySqlTemplateStore(pool);
  *   await userStore.init();
  *   await linkedAccountsStore.init();
  *   await settingsStore.init();
+ *   await templateStore.init();
  *
  * NOTE: This file is intentionally NOT compiled by tsconfig.json (it lives in
  * examples/, which is excluded). Treat it as reference documentation.
@@ -22,11 +24,12 @@
  * Also exports:
  *  - MySqlLinkedAccountsStore — ILinkedAccountsStore for flexible OAuth account linking
  *  - MySqlSettingsStore       — ISettingsStore for global auth settings (admin panel)
+ *  - MySqlTemplateStore       — ITemplateStore for custom email templates + UI i18n (admin panel)
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { IUserStore, BaseUser, ILinkedAccountsStore, LinkedAccount, ISettingsStore, AuthSettings } from '../src/index';
+import { IUserStore, BaseUser, ILinkedAccountsStore, LinkedAccount, ISettingsStore, AuthSettings, ITemplateStore, MailTemplate, UiTranslation } from '../src/index';
 
 // ---- MySQL row shape (snake_case columns) ---------------------------------
 
@@ -486,5 +489,136 @@ export class MySqlSettingsStore implements ISettingsStore {
         [key, JSON.stringify(value)],
       );
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// MySqlTemplateStore
+// ---------------------------------------------------------------------------
+
+/**
+ * MySQL ITemplateStore — persists custom email templates and UI i18n strings
+ * for the admin panel Email & UI Templates tab.
+ *
+ * Two tables are used:
+ *   mail_templates  — one row per template ID
+ *   ui_translations — one row per page ID
+ *
+ * Usage:
+ *   const templateStore = new MySqlTemplateStore(pool);
+ *   await templateStore.init();
+ *
+ *   // Wire to AuthConfigurator so MailerService uses stored templates:
+ *   const auth = new AuthConfigurator({ ...authConfig, templateStore }, userStore);
+ *
+ *   // Wire to buildUiRouter so stored UI translations are injected at render time:
+ *   app.use('/auth/ui', buildUiRouter({ authConfig, templateStore, ... }));
+ *
+ *   // Wire to createAdminRouter to enable the 📧 Email & UI Templates tab:
+ *   app.use('/admin', createAdminRouter(userStore, {
+ *     accessPolicy: 'first-user',
+ *     jwtSecret,
+ *     templateStore,
+ *   }));
+ */
+export class MySqlTemplateStore implements ITemplateStore {
+  constructor(private readonly pool: any /* mysql2 Pool */) {}
+
+  /** Call once at application start to create the tables if absent. */
+  async init(): Promise<void> {
+    await this.pool.execute(`
+      CREATE TABLE IF NOT EXISTS mail_templates (
+        id           VARCHAR(100)  NOT NULL PRIMARY KEY,
+        base_html    LONGTEXT      NOT NULL,
+        base_text    LONGTEXT      NOT NULL,
+        translations JSON          NOT NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    await this.pool.execute(`
+      CREATE TABLE IF NOT EXISTS ui_translations (
+        page         VARCHAR(100)  NOT NULL PRIMARY KEY,
+        translations JSON          NOT NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
+  // ---- Mail templates -------------------------------------------------------
+
+  async getMailTemplate(id: string): Promise<MailTemplate | null> {
+    const [rows] = await this.pool.execute(
+      'SELECT id, base_html, base_text, translations FROM mail_templates WHERE id = ? LIMIT 1',
+      [id],
+    );
+    const row = (rows as any[])[0];
+    if (!row) return null;
+    return {
+      id:           row.id,
+      baseHtml:     row.base_html  ?? '',
+      baseText:     row.base_text  ?? '',
+      translations: typeof row.translations === 'string' ? JSON.parse(row.translations) : (row.translations ?? {}),
+    };
+  }
+
+  async listMailTemplates(): Promise<MailTemplate[]> {
+    const [rows] = await this.pool.execute(
+      'SELECT id, base_html, base_text, translations FROM mail_templates',
+    );
+    return (rows as any[]).map(row => ({
+      id:           row.id,
+      baseHtml:     row.base_html  ?? '',
+      baseText:     row.base_text  ?? '',
+      translations: typeof row.translations === 'string' ? JSON.parse(row.translations) : (row.translations ?? {}),
+    }));
+  }
+
+  async updateMailTemplate(id: string, template: Partial<MailTemplate>): Promise<void> {
+    const existing = await this.getMailTemplate(id);
+    const merged: MailTemplate = {
+      id,
+      baseHtml:     template.baseHtml     ?? existing?.baseHtml     ?? '',
+      baseText:     template.baseText     ?? existing?.baseText     ?? '',
+      translations: template.translations ?? existing?.translations ?? {},
+    };
+    await this.pool.execute(
+      `INSERT INTO mail_templates (id, base_html, base_text, translations)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE base_html = VALUES(base_html), base_text = VALUES(base_text), translations = VALUES(translations)`,
+      [merged.id, merged.baseHtml, merged.baseText, JSON.stringify(merged.translations)],
+    );
+  }
+
+  // ---- UI translations ------------------------------------------------------
+
+  async getUiTranslations(page: string): Promise<UiTranslation | null> {
+    const [rows] = await this.pool.execute(
+      'SELECT page, translations FROM ui_translations WHERE page = ? LIMIT 1',
+      [page],
+    );
+    const row = (rows as any[])[0];
+    if (!row) return null;
+    return {
+      page:         row.page,
+      translations: typeof row.translations === 'string' ? JSON.parse(row.translations) : (row.translations ?? {}),
+    };
+  }
+
+  async listUiTranslations(): Promise<UiTranslation[]> {
+    const [rows] = await this.pool.execute('SELECT page, translations FROM ui_translations');
+    return (rows as any[]).map(row => ({
+      page:         row.page,
+      translations: typeof row.translations === 'string' ? JSON.parse(row.translations) : (row.translations ?? {}),
+    }));
+  }
+
+  async updateUiTranslations(
+    page: string,
+    translations: Record<string, Record<string, string>>,
+  ): Promise<void> {
+    await this.pool.execute(
+      `INSERT INTO ui_translations (page, translations)
+       VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE translations = VALUES(translations)`,
+      [page, JSON.stringify(translations)],
+    );
   }
 }

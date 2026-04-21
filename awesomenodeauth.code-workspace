@@ -7,13 +7,7 @@
 			"path": "../node-auth"
 		},
 		{
-			"path": "../../applikat/site-builder"
-		},
-		{
 			"path": "."
-		},
-		{
-			"path": "../../applikat/management-dashboard"
 		}
 	],
 	"settings": {}

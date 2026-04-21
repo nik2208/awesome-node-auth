@@ -5,7 +5,7 @@
  * connecting to a database.
  */
 
-import { AuthConfigurator, AuthConfig, PasswordService, AuthError, createAdminRouter } from 'awesome-node-auth';
+import { AuthConfigurator, AuthConfig, PasswordService, AuthError, createAdminRouter, MemoryTemplateStore } from 'awesome-node-auth';
 import { InMemoryUserStore } from './user-store';
 
 export const authConfig: AuthConfig = {
@@ -22,12 +22,18 @@ export const authConfig: AuthConfig = {
 export const userStore = new InMemoryUserStore();
 const passwordService = new PasswordService();
 
+// Template store — enables the 📧 Email & UI Templates tab in the admin panel.
+const templateStore = new MemoryTemplateStore();
+
 // Singleton — avoids re-creating on every hot-reload in development
 let _auth: AuthConfigurator | undefined;
 
 export function getAuth(): AuthConfigurator {
   if (!_auth) {
-    _auth = new AuthConfigurator(authConfig, userStore);
+    _auth = new AuthConfigurator(
+      { ...authConfig, templateStore },  // templateStore enables email template overrides
+      userStore,
+    );
   }
   return _auth;
 }
@@ -40,6 +46,7 @@ export function getAdminRouter() {
     _adminRouter = createAdminRouter(userStore, {
       jwtSecret: process.env.ACCESS_TOKEN_SECRET ?? 'dev-secret',
       accessPolicy: 'first-user',
+      templateStore,  // enables 📧 Email & UI Templates tab (live editor + preview)
     });
   }
   return _adminRouter;

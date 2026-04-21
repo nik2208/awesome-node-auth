@@ -41,6 +41,7 @@ import {
   InMemoryUserStore,
   InMemoryLinkedAccountsStore,
   InMemorySettingsStore,
+  InMemoryTemplateStore,
 } from './in-memory-user-store';
 
 // ---------------------------------------------------------------------------
@@ -67,6 +68,9 @@ const config: AuthConfig = {
 const userStore          = new InMemoryUserStore();
 const linkedAccountsStore = new InMemoryLinkedAccountsStore();
 const settingsStore      = new InMemorySettingsStore();
+// Template store — enables the 📧 Email & UI Templates tab in the admin panel.
+// Swap InMemoryTemplateStore for a DB-backed implementation in production.
+const templateStore      = new InMemoryTemplateStore();
 
 // ---------------------------------------------------------------------------
 // 3. GenericOAuthStrategy — Discord example
@@ -175,6 +179,7 @@ const adminRouter = createAdminRouter(userStore, {
   accessPolicy: 'first-user',
   jwtSecret: process.env.ACCESS_TOKEN_SECRET ?? 'change-me-access-secret',
   settingsStore,
+  templateStore,    // enables 📧 Email & UI Templates tab (live editor + preview)
   // Pass linkedAccountsStore to show linked accounts in the Users table and
   // detail panel, and to enable GET /admin/api/users/:id/linked-accounts.
   linkedAccountsStore,
@@ -206,6 +211,7 @@ app.use('/auth/ui', buildUiRouter({
   authConfig: config,
   routerOptions: { oauthStrategies: [discordStrategy] },
   settingsStore,
+  templateStore,    // enables UI i18n injection via stored translations
   uploadDir: path.join(os.tmpdir(), 'awesome-node-auth-uploads'),
   apiPrefix: '/auth',
 }));

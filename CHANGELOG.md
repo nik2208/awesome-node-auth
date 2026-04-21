@@ -3,6 +3,24 @@
 All notable changes to **awesome-node-auth** are documented in this file.  
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+---
+
+## [1.8.4] - 2026-04-18
+
+### Fixed
+- **Admin panel — Email & UI Templates tab (silent failures)**: the template catalogue in the admin UI listed `email-verification` (non-existent) and the spurious `otp` ID while omitting `welcome` and `email-changed`. Customisations appeared saved but were never applied because `MailerService` looks up different IDs. All six IDs (`magic-link`, `password-reset`, `verify-email`, `welcome`, `email-changed`, `invitation`) now match `MailerService.render()` exactly.
+- **Admin panel — UI translations pages list drift**: `sms-login` (no HTML file) and `common` (not queried by the UI router) have been removed; `magic-link`, `link-verify`, and `account-conflict` have been added. Each page now carries its exact `data-i18n` keys extracted from the corresponding HTML file.
+- **Admin panel — CSS classes missing**: all class names referenced by the Templates tab JavaScript (`template-grid`, `template-list`, `template-item`, `template-editor-*`, `template-preview-*`, `template-vars`, `template-var-chip`, `translation-grid`, `translation-lang-*`) are now defined in `admin.css`.
+- **`MailerService.render()`**: templates stored with empty `baseHtml` or `baseText` (e.g. after pressing "Reset to default" in the admin panel) now correctly fall back to the built-in template instead of rendering an empty email.
+
+### Added
+- **Admin panel — Live preview**: the template editor now renders a sandboxed `<iframe srcdoc>` preview in real time, interpolating `{{VAR}}` and `{{T.key}}` with labelled sample values. The subject line is displayed above the preview. `sandbox=""` prevents scripts, forms, and navigation entirely.
+- **Admin panel — Translations key/value grid**: the raw JSON textarea for translations has been replaced with a per-language tab + key/value grid. Languages and keys can be added/removed without touching JSON. Shared by both the email template and UI translations editors.
+- **Admin panel — Click-to-insert variable chips**: each template exposes its `{{VAR}}` and `{{T.key}}` placeholders as clickable chips; clicking one inserts it at the cursor position in the focused textarea.
+- **Admin panel — Reset to default button**: clears `baseHtml`, `baseText`, and `translations` in the store so `MailerService` falls back to its built-in template.
+- **`scripts/extract-i18n-keys.js`**: new build script that reads every HTML page in `src/ui/assets/` and writes `src/ui/assets/ui-i18n-keys.json` — a static map of `page → data-i18n keys`. Run via `npm run extract-i18n` (also executed automatically during `npm run build`).
+
+---
 
 
 ## [1.8.3] — 2026-04-02

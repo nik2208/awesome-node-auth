@@ -49,6 +49,7 @@ import {
   PasswordService,
   AuthError,
   createAdminRouter,
+  MemoryTemplateStore,
 } from 'awesome-node-auth';
 
 import { InMemoryUserStore } from './user-store';
@@ -57,6 +58,9 @@ import { InMemoryUserStore } from './user-store';
 
 const userStore = new InMemoryUserStore();
 const passwordService = new PasswordService();
+
+// Template store — enables the 📧 Email & UI Templates tab in the admin panel.
+const templateStore = new MemoryTemplateStore();
 
 const authConfig: AuthConfig = {
   accessTokenSecret:  process.env['ACCESS_TOKEN_SECRET']  ?? 'demo-access-secret-change-in-production',
@@ -67,6 +71,7 @@ const authConfig: AuthConfig = {
     secure:   process.env.NODE_ENV === 'production',
     sameSite: 'lax',
   },
+  templateStore,  // enables email template overrides via MailerService
 };
 
 // ── 1. AuthModule ─────────────────────────────────────────────────────────────
@@ -196,6 +201,7 @@ async function bootstrap() {
   const adminRouter = createAdminRouter(userStore, {
     jwtSecret: process.env['ACCESS_TOKEN_SECRET'] ?? 'dev-secret',
     accessPolicy: 'first-user',
+    templateStore,  // enables 📧 Email & UI Templates tab (live editor + preview)
   });
   app.use('/admin', adminRouter as any);
 

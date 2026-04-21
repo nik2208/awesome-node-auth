@@ -7,7 +7,7 @@
  *
  * Usage:
  *   import { MongoClient } from 'mongodb';
- *   import { MongoDbUserStore, MongoDbLinkedAccountsStore, MongoDbSettingsStore } from './mongodb-user-store.example';
+ *   import { MongoDbUserStore, MongoDbLinkedAccountsStore, MongoDbSettingsStore, MongoDbTemplateStore } from './mongodb-user-store.example';
  *
  *   const client = new MongoClient(process.env.MONGODB_URI!);
  *   await client.connect();
@@ -16,6 +16,7 @@
  *   const userStore = new MongoDbUserStore(db);
  *   const linkedAccountsStore = new MongoDbLinkedAccountsStore(db);
  *   const settingsStore = new MongoDbSettingsStore(db);
+ *   const templateStore = new MongoDbTemplateStore(db);
  *   // Creates indexes automatically on first call to init().
  *   await userStore.init();
  *   await linkedAccountsStore.init();
@@ -29,6 +30,7 @@
  * Also exports:
  *  - MongoDbLinkedAccountsStore — ILinkedAccountsStore for flexible OAuth account linking
  *  - MongoDbSettingsStore       — ISettingsStore for global auth settings (admin panel)
+ *  - MongoDbTemplateStore       — ITemplateStore for custom email templates + UI i18n (admin panel)
  *
  * Mongoose alternative
  * --------------------
@@ -40,7 +42,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { IUserStore, BaseUser, ILinkedAccountsStore, LinkedAccount, ISettingsStore, AuthSettings } from '../src/index';
+import { IUserStore, BaseUser, ILinkedAccountsStore, LinkedAccount, ISettingsStore, AuthSettings, ITemplateStore, MailTemplate, UiTranslation } from '../src/index';
 
 // ---- MongoDB document shape -----------------------------------------------
 
@@ -419,3 +421,112 @@ export class MongoDbSettingsStore implements ISettingsStore {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// MongoDbTemplateStore
+// ---------------------------------------------------------------------------
+
+/**
+ * MongoDB ITemplateStore — persists custom email templates and UI i18n strings
+ * for the admin panel Email & UI Templates tab.
+ *
+ * Two collections are used:
+ *   mail_templates  — one document per template ID
+ *   ui_translations — one document per page ID
+ *
+ * Usage:
+ *   const templateStore = new MongoDbTemplateStore(db);
+ *
+ *   // Wire to AuthConfigurator so MailerService uses stored templates:
+ *   const auth = new AuthConfigurator({ ...authConfig, templateStore }, userStore);
+ *
+ *   // Wire to buildUiRouter so stored UI translations are injected at render time:
+ *   app.use('/auth/ui', buildUiRouter({ authConfig, templateStore, ... }));
+ *
+ *   // Wire to createAdminRouter to enable the 📧 Email & UI Templates tab:
+ *   app.use('/admin', createAdminRouter(userStore, {
+ *     accessPolicy: 'first-user',
+ *     jwtSecret,
+ *     templateStore,
+ *   }));
+ */
+export class MongoDbTemplateStore implements ITemplateStore {
+  private mailCol: any;   // mongodb Collection<mail template docs>
+  private uiCol: any;     // mongodb Collection<ui translation docs>
+
+  constructor(
+    private readonly db: any,
+    mailCollectionName = 'mail_templates',
+    uiCollectionName   = 'ui_translations',
+  ) {
+    this.mailCol = this.db.collection(mailCollectionName);
+    this.uiCol   = this.db.collection(uiCollectionName);
+  }
+
+  /** Call once at application start to create indexes. */
+  async init(): Promise<void> {
+    await this.mailCol.createIndex({ id: 1 }, { unique: true });
+    await this.uiCol.createIndex({ page: 1 }, { unique: true });
+  }
+
+  // ---- Mail templates -------------------------------------------------------
+
+  async getMailTemplate(id: string): Promise<MailTemplate | null> {
+    const doc: any = await this.mailCol.findOne({ id });
+    if (!doc) return null;
+    return {
+      id:           doc.id,
+      baseHtml:     doc.baseHtml     ?? '',
+      baseText:     doc.baseText     ?? '',
+      translations: doc.translations ?? {},
+    };
+  }
+
+  async listMailTemplates(): Promise<MailTemplate[]> {
+    const docs: any[] = await this.mailCol.find({}).toArray();
+    return docs.map(doc => ({
+      id:           doc.id,
+      baseHtml:     doc.baseHtml     ?? '',
+      baseText:     doc.baseText     ?? '',
+      translations: doc.translations ?? {},
+    }));
+  }
+
+  async updateMailTemplate(id: string, template: Partial<MailTemplate>): Promise<void> {
+    const existing = await this.getMailTemplate(id);
+    const merged: MailTemplate = {
+      id,
+      baseHtml:     template.baseHtml     ?? existing?.baseHtml     ?? '',
+      baseText:     template.baseText     ?? existing?.baseText     ?? '',
+      translations: template.translations ?? existing?.translations ?? {},
+    };
+    await this.mailCol.replaceOne({ id }, merged, { upsert: true });
+  }
+
+  // ---- UI translations ------------------------------------------------------
+
+  async getUiTranslations(page: string): Promise<UiTranslation | null> {
+    const doc: any = await this.uiCol.findOne({ page });
+    if (!doc) return null;
+    return {
+      page:         doc.page,
+      translations: doc.translations ?? {},
+    };
+  }
+
+  async listUiTranslations(): Promise<UiTranslation[]> {
+    const docs: any[] = await this.uiCol.find({}).toArray();
+    return docs.map(doc => ({
+      page:         doc.page,
+      translations: doc.translations ?? {},
+    }));
+  }
+
+  async updateUiTranslations(
+    page: string,
+    translations: Record<string, Record<string, string>>,
+  ): Promise<void> {
+    await this.uiCol.replaceOne({ page }, { page, translations }, { upsert: true });
+  }
+}
+

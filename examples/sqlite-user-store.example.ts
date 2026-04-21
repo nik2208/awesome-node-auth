@@ -7,18 +7,20 @@
  *
  * Usage:
  *   import Database from 'better-sqlite3';
- *   import { SqliteUserStore, SqliteLinkedAccountsStore, SqliteSettingsStore } from './sqlite-user-store.example';
+ *   import { SqliteUserStore, SqliteLinkedAccountsStore, SqliteSettingsStore, SqliteTemplateStore } from './sqlite-user-store.example';
  *
  *   const db = new Database('app.db');
  *   const userStore = new SqliteUserStore(db);
  *   const linkedAccountsStore = new SqliteLinkedAccountsStore(db);
  *   const settingsStore = new SqliteSettingsStore(db);
+ *   const templateStore = new SqliteTemplateStore(db);
  *
  * The constructors automatically create the required tables if they do not exist.
  *
  * Also exports:
  *  - SqliteLinkedAccountsStore — ILinkedAccountsStore for flexible OAuth account linking
  *  - SqliteSettingsStore       — ISettingsStore for global auth settings (admin panel)
+ *  - SqliteTemplateStore       — ITemplateStore for custom email templates + UI i18n (admin panel)
  */
 
 // NOTE: This file is intentionally NOT compiled by tsconfig.json (it lives in
@@ -29,7 +31,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { IUserStore, BaseUser, ILinkedAccountsStore, LinkedAccount, ISettingsStore, AuthSettings } from '../src/index';
+import { IUserStore, BaseUser, ILinkedAccountsStore, LinkedAccount, ISettingsStore, AuthSettings, ITemplateStore, MailTemplate, UiTranslation } from '../src/index';
 
 interface DbUser {
   id: string;
@@ -422,5 +424,131 @@ export class SqliteSettingsStore implements ISettingsStore {
     for (const [key, value] of Object.entries(updates)) {
       stmt.run(key, JSON.stringify(value));
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SqliteTemplateStore
+// ---------------------------------------------------------------------------
+
+/**
+ * SQLite ITemplateStore — persists custom email templates and UI i18n strings
+ * for the admin panel Email & UI Templates tab.
+ *
+ * Two tables are used:
+ *   mail_templates  — one row per template ID
+ *   ui_translations — one row per page ID
+ *
+ * Usage:
+ *   const templateStore = new SqliteTemplateStore(db);
+ *
+ *   // Wire to AuthConfigurator so MailerService uses stored templates:
+ *   const auth = new AuthConfigurator({ ...authConfig, templateStore }, userStore);
+ *
+ *   // Wire to buildUiRouter so stored UI translations are injected at render time:
+ *   app.use('/auth/ui', buildUiRouter({ authConfig, templateStore, ... }));
+ *
+ *   // Wire to createAdminRouter to enable the 📧 Email & UI Templates tab:
+ *   app.use('/admin', createAdminRouter(userStore, {
+ *     accessPolicy: 'first-user',
+ *     jwtSecret,
+ *     templateStore,
+ *   }));
+ */
+export class SqliteTemplateStore implements ITemplateStore {
+  constructor(private readonly db: any /* Database from better-sqlite3 */) {
+    this.createTables();
+  }
+
+  private createTables(): void {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS mail_templates (
+        id           TEXT NOT NULL PRIMARY KEY,
+        base_html    TEXT NOT NULL DEFAULT '',
+        base_text    TEXT NOT NULL DEFAULT '',
+        translations TEXT NOT NULL DEFAULT '{}'
+      )
+    `);
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS ui_translations (
+        page         TEXT NOT NULL PRIMARY KEY,
+        translations TEXT NOT NULL DEFAULT '{}'
+      )
+    `);
+  }
+
+  // ---- Mail templates -------------------------------------------------------
+
+  async getMailTemplate(id: string): Promise<MailTemplate | null> {
+    const row = this.db
+      .prepare('SELECT id, base_html, base_text, translations FROM mail_templates WHERE id = ?')
+      .get(id) as { id: string; base_html: string; base_text: string; translations: string } | undefined;
+    if (!row) return null;
+    return {
+      id:           row.id,
+      baseHtml:     row.base_html ?? '',
+      baseText:     row.base_text ?? '',
+      translations: JSON.parse(row.translations ?? '{}'),
+    };
+  }
+
+  async listMailTemplates(): Promise<MailTemplate[]> {
+    const rows = this.db
+      .prepare('SELECT id, base_html, base_text, translations FROM mail_templates')
+      .all() as { id: string; base_html: string; base_text: string; translations: string }[];
+    return rows.map(row => ({
+      id:           row.id,
+      baseHtml:     row.base_html ?? '',
+      baseText:     row.base_text ?? '',
+      translations: JSON.parse(row.translations ?? '{}'),
+    }));
+  }
+
+  async updateMailTemplate(id: string, template: Partial<MailTemplate>): Promise<void> {
+    const existing = await this.getMailTemplate(id);
+    const merged: MailTemplate = {
+      id,
+      baseHtml:     template.baseHtml     ?? existing?.baseHtml     ?? '',
+      baseText:     template.baseText     ?? existing?.baseText     ?? '',
+      translations: template.translations ?? existing?.translations ?? {},
+    };
+    this.db
+      .prepare(`
+        INSERT OR REPLACE INTO mail_templates (id, base_html, base_text, translations)
+        VALUES (?, ?, ?, ?)
+      `)
+      .run(merged.id, merged.baseHtml, merged.baseText, JSON.stringify(merged.translations));
+  }
+
+  // ---- UI translations ------------------------------------------------------
+
+  async getUiTranslations(page: string): Promise<UiTranslation | null> {
+    const row = this.db
+      .prepare('SELECT page, translations FROM ui_translations WHERE page = ?')
+      .get(page) as { page: string; translations: string } | undefined;
+    if (!row) return null;
+    return {
+      page:         row.page,
+      translations: JSON.parse(row.translations ?? '{}'),
+    };
+  }
+
+  async listUiTranslations(): Promise<UiTranslation[]> {
+    const rows = this.db
+      .prepare('SELECT page, translations FROM ui_translations')
+      .all() as { page: string; translations: string }[];
+    return rows.map(row => ({
+      page:         row.page,
+      translations: JSON.parse(row.translations ?? '{}'),
+    }));
+  }
+
+  async updateUiTranslations(
+    page: string,
+    translations: Record<string, Record<string, string>>,
+  ): Promise<void> {
+    this.db
+      .prepare('INSERT OR REPLACE INTO ui_translations (page, translations) VALUES (?, ?)')
+      .run(page, JSON.stringify(translations));
   }
 }

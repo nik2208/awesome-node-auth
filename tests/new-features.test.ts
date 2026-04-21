@@ -1343,3 +1343,174 @@ describe('Admin Router — user and session filter', () => {
     expect(res.body.sessions[0].userId).toBe('uid-alice');
   });
 });
+
+// ── Admin Router — session-based login (accessPolicy) ─────────────────────────
+describe('Admin Router — session-based login cookie fixes', () => {
+  // Minimal in-memory user store
+  const loginUsers = new Map([
+    ['u1', { id: 'u1', email: 'admin@test.com', password: '' as string, isAdmin: true }],
+  ]);
+
+  beforeAll(async () => {
+    // Pre-hash the password for the admin user.
+    // Cost factor 4 is the minimum permitted by bcryptjs and keeps tests fast
+    // while still exercising the real hashing path. Never use below 10 in production.
+    const bcrypt = await import('bcryptjs');
+    loginUsers.get('u1')!.password = await bcrypt.hash('secret', 4);
+  });
+
+  const userStore: IUserStore = {
+    findByEmail: vi.fn((email) => Promise.resolve(
+      [...loginUsers.values()].find(u => u.email === email) as any ?? null,
+    )),
+    findById: vi.fn((id) => Promise.resolve(loginUsers.get(id as string) as any ?? null)),
+    create: vi.fn(),
+    updateRefreshToken: vi.fn(),
+    updateLastLogin: vi.fn(),
+    listUsers: vi.fn(() => Promise.resolve([])),
+    deleteUser: vi.fn(),
+  } as unknown as IUserStore;
+
+  const JWT_SECRET = 'test-admin-jwt-secret';
+
+  function makeApp(extraOptions: Record<string, unknown> = {}) {
+    const app = express();
+    app.use(express.json());
+    // Note: no cookie-parser — the admin router handles raw Cookie header parsing.
+    app.use('/admin', createAdminRouter(userStore, {
+      accessPolicy: 'is-admin-flag',
+      jwtSecret: JWT_SECRET,
+      ...extraOptions,
+    }));
+    return app;
+  }
+
+  it('POST /admin/login returns 401 for wrong password', async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .post('/admin/login')
+      .send({ email: 'admin@test.com', password: 'wrong' });
+    expect(res.status).toBe(401);
+  });
+
+  it('POST /admin/login sets an HttpOnly cookie on success', async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .post('/admin/login')
+      .send({ email: 'admin@test.com', password: 'secret' });
+    expect(res.status).toBe(200);
+    const setCookie: string[] = Array.isArray(res.headers['set-cookie'])
+      ? res.headers['set-cookie']
+      : [res.headers['set-cookie'] ?? ''];
+    expect(setCookie.some(c => c.includes('HttpOnly'))).toBe(true);
+  });
+
+  it('POST /admin/login sets cookie name "accessToken" on HTTP (non-secure)', async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .post('/admin/login')
+      .send({ email: 'admin@test.com', password: 'secret' });
+    expect(res.status).toBe(200);
+    const setCookie: string[] = Array.isArray(res.headers['set-cookie'])
+      ? res.headers['set-cookie']
+      : [res.headers['set-cookie'] ?? ''];
+    // On HTTP the cookie should be plain 'accessToken' (no __Host- prefix)
+    expect(setCookie.some(c => c.startsWith('accessToken='))).toBe(true);
+    expect(setCookie.some(c => c.startsWith('__Host-') || c.startsWith('__Secure-'))).toBe(false);
+  });
+
+  it('POST /admin/login includes maxAge aligned with 24h JWT expiry', async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .post('/admin/login')
+      .send({ email: 'admin@test.com', password: 'secret' });
+    expect(res.status).toBe(200);
+    const setCookie: string[] = Array.isArray(res.headers['set-cookie'])
+      ? res.headers['set-cookie']
+      : [res.headers['set-cookie'] ?? ''];
+    const tokenCookie = setCookie.find(c => c.startsWith('accessToken=') || c.startsWith('__Host-accessToken='));
+    expect(tokenCookie).toBeDefined();
+    // Cookie must have Max-Age (or Expires) so it survives browser restart
+    expect(tokenCookie!.toLowerCase()).toMatch(/max-age=|expires=/);
+  });
+
+  it('POST /admin/login cookie is readable by the guard on the next request', async () => {
+    const app = makeApp();
+    // 1. Login
+    const loginRes = await request(app)
+      .post('/admin/login')
+      .send({ email: 'admin@test.com', password: 'secret' });
+    expect(loginRes.status).toBe(200);
+    const setCookie: string[] = Array.isArray(loginRes.headers['set-cookie'])
+      ? loginRes.headers['set-cookie']
+      : [loginRes.headers['set-cookie'] ?? ''];
+    // 2. Use the cookie to access a protected endpoint
+    const pingRes = await request(app)
+      .get('/admin/api/ping')
+      .set('Cookie', setCookie.map(c => c.split(';')[0]).join('; '));
+    expect(pingRes.status).toBe(200);
+  });
+
+  it('POST /admin/logout clears the cookie with matching name', async () => {
+    const app = makeApp();
+    const loginRes = await request(app)
+      .post('/admin/login')
+      .send({ email: 'admin@test.com', password: 'secret' });
+    const loginCookies: string[] = Array.isArray(loginRes.headers['set-cookie'])
+      ? loginRes.headers['set-cookie']
+      : [loginRes.headers['set-cookie'] ?? ''];
+
+    const logoutRes = await request(app)
+      .post('/admin/logout')
+      .set('Cookie', loginCookies.map(c => c.split(';')[0]).join('; '));
+    expect(logoutRes.status).toBe(200);
+    const clearCookies: string[] = Array.isArray(logoutRes.headers['set-cookie'])
+      ? logoutRes.headers['set-cookie']
+      : [logoutRes.headers['set-cookie'] ?? ''];
+    // The logout response should clear the same cookie name that was set during login
+    const loginCookieName = loginCookies[0].split('=')[0];
+    expect(clearCookies.some(c => c.startsWith(loginCookieName + '='))).toBe(true);
+    // Max-Age=0 or Expires in the past signals deletion
+    const clearCookie = clearCookies.find(c => c.startsWith(loginCookieName + '='))!;
+    expect(clearCookie.toLowerCase()).toMatch(/max-age=0|expires=.*1970/);
+  });
+
+  it('POST /admin/login uses __Host-accessToken prefix when x-forwarded-proto is https', async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .post('/admin/login')
+      .set('x-forwarded-proto', 'https')
+      .send({ email: 'admin@test.com', password: 'secret' });
+    expect(res.status).toBe(200);
+    const setCookie: string[] = Array.isArray(res.headers['set-cookie'])
+      ? res.headers['set-cookie']
+      : [res.headers['set-cookie'] ?? ''];
+    // On HTTPS with default path (/) and no domain, cookie must use __Host- prefix
+    expect(setCookie.some(c => c.startsWith('__Host-accessToken='))).toBe(true);
+    // __Host- requires Secure + Path=/
+    const hostCookie = setCookie.find(c => c.startsWith('__Host-accessToken='))!;
+    expect(hostCookie.toLowerCase()).toContain('secure');
+    expect(hostCookie.toLowerCase()).toContain('path=/');
+  });
+
+  it('POST /admin/logout clears __Host-accessToken on HTTPS', async () => {
+    const app = makeApp();
+    const loginRes = await request(app)
+      .post('/admin/login')
+      .set('x-forwarded-proto', 'https')
+      .send({ email: 'admin@test.com', password: 'secret' });
+    const loginCookies: string[] = Array.isArray(loginRes.headers['set-cookie'])
+      ? loginRes.headers['set-cookie']
+      : [loginRes.headers['set-cookie'] ?? ''];
+
+    const logoutRes = await request(app)
+      .post('/admin/logout')
+      .set('x-forwarded-proto', 'https')
+      .set('Cookie', loginCookies.map(c => c.split(';')[0]).join('; '));
+    expect(logoutRes.status).toBe(200);
+    const clearCookies: string[] = Array.isArray(logoutRes.headers['set-cookie'])
+      ? logoutRes.headers['set-cookie']
+      : [logoutRes.headers['set-cookie'] ?? ''];
+    expect(clearCookies.some(c => c.startsWith('__Host-accessToken='))).toBe(true);
+  });
+});

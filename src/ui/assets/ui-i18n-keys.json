@@ -1,0 +1,78 @@
+{
+  "2fa": [
+    "site_name",
+    "two_fa_code_label",
+    "two_fa_code_placeholder",
+    "two_fa_setup_instruction",
+    "two_fa_title",
+    "verify_code_button"
+  ],
+  "account-conflict": [
+    "account_linking_instruction",
+    "account_linking_title",
+    "send_verification_email_button",
+    "site_name"
+  ],
+  "forgot-password": [
+    "email_label",
+    "email_placeholder",
+    "forgot_password_instruction",
+    "forgot_password_success",
+    "forgot_password_title",
+    "login_link",
+    "remember_password_text",
+    "return_to_login_link",
+    "send_reset_link_button",
+    "site_name"
+  ],
+  "link-verify": [
+    "account_linking_loading",
+    "account_linking_title",
+    "go_to_login_link",
+    "site_name"
+  ],
+  "login": [
+    "email_label",
+    "email_placeholder",
+    "forgot_password_link",
+    "login_button",
+    "login_title",
+    "no_account_text",
+    "password_label",
+    "password_placeholder",
+    "signup_link",
+    "site_name",
+    "social_divider"
+  ],
+  "magic-link": [
+    "email_label",
+    "email_placeholder",
+    "magic_link_instruction",
+    "magic_link_title",
+    "send_magic_link_button",
+    "site_name"
+  ],
+  "register": [
+    "email_label",
+    "email_placeholder",
+    "register_title",
+    "site_name"
+  ],
+  "reset-password": [
+    "confirm_password_label",
+    "confirm_password_placeholder",
+    "new_password_label",
+    "new_password_placeholder",
+    "proceed_to_login_link",
+    "reset_password_success",
+    "reset_password_title",
+    "save_password_button",
+    "site_name"
+  ],
+  "verify-email": [
+    "go_to_login_link",
+    "site_name",
+    "verify_email_loading",
+    "verify_email_title"
+  ]
+}

@@ -69,6 +69,7 @@
         var res = await fetch(loginUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ email: email, password: secret })
         });
 
@@ -133,7 +134,7 @@
       showTab('users');
     }).catch(function () { sessionStorage.removeItem('admin_token'); _token = ''; });
   } else if (cfg.sessionBased && !document.getElementById('login')) {
-    // Session-based (cookie): if the server didn't render the login form, it means we are authorized.
+    // Session-based (cookie): if the server didn't render the login form, we are already authenticated.
     document.getElementById('app').style.display = 'flex';
     document.getElementById('app').style.flexDirection = 'column';
     showTab('users');
@@ -141,9 +142,22 @@
 
   // ---- API helper ----------------------------------------------------------
   async function api(method, path, body) {
+    var headers = { 'Content-Type': 'application/json' };
+    // In token-based (legacy adminSecret) mode, attach the Bearer token.
+    // In session-based (cookie) mode, never send an empty Authorization header —
+    // an empty "Bearer " string can confuse global fetch interceptors (e.g. auth.js)
+    // and cause them to treat any 401 from admin API endpoints as a session expiry
+    // event, triggering a redirect to /auth/ui/login.
+    if (_token) {
+      headers['Authorization'] = 'Bearer ' + _token;
+    }
     var res = await fetch(BASE + path, {
       method: method,
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _token },
+      headers: headers,
+      // Always include cookies so the admin session cookie is sent even in
+      // scenarios where the admin router is mounted on a different sub-path
+      // or when a service worker intercepts the request.
+      credentials: 'include',
       body: body ? JSON.stringify(body) : undefined
     });
     if (!res.ok) {
@@ -1347,6 +1361,82 @@
   window.removeUserRole = removeUserRole;
   window.saveUserMeta = saveUserMeta;
   // ---- Email & UI Templates ───────────────────────────────────────────────
+
+  // Source-of-truth catalogue: IDs MUST match MailerService.render() call sites
+  var MAIL_TEMPLATES = [
+    {
+      id: 'welcome',
+      label: 'Welcome',
+      description: 'Sent after successful registration.',
+      variables: [
+        { name: 'loginUrl', description: 'URL to the login page' },
+        { name: 'tempPassword', description: 'Temporary password (only if admin-created)' },
+      ],
+      translationKeys: ['subject', 'title', 'body', 'cta'],
+    },
+    {
+      id: 'magic-link',
+      label: 'Magic Link',
+      description: 'Passwordless sign-in link.',
+      variables: [
+        { name: 'link', description: 'One-time sign-in URL' },
+        { name: 'token', description: 'Raw token (rarely needed in template)' },
+      ],
+      translationKeys: ['subject', 'title', 'body', 'cta', 'disclaimer'],
+    },
+    {
+      id: 'password-reset',
+      label: 'Password Reset',
+      description: 'Sent when the user requests a password reset.',
+      variables: [
+        { name: 'link', description: 'Password-reset URL' },
+        { name: 'token', description: 'Raw token' },
+      ],
+      translationKeys: ['subject', 'title', 'body', 'cta', 'disclaimer'],
+    },
+    {
+      id: 'verify-email',
+      label: 'Verify Email',
+      description: 'Sent to verify a new email address.',
+      variables: [
+        { name: 'link', description: 'Email-verification URL' },
+        { name: 'token', description: 'Raw token' },
+      ],
+      translationKeys: ['subject', 'title', 'body', 'cta', 'disclaimer'],
+    },
+    {
+      id: 'email-changed',
+      label: 'Email Changed',
+      description: 'Sent to the old address when the email is updated.',
+      variables: [
+        { name: 'newEmail', description: 'The new email address' },
+      ],
+      translationKeys: ['subject', 'title', 'body', 'support'],
+    },
+    {
+      id: 'invitation',
+      label: 'Invitation',
+      description: 'Sent when an admin invites a new user.',
+      variables: [
+        { name: 'link', description: 'Accept-invitation URL' },
+      ],
+      translationKeys: ['subject', 'title', 'body', 'cta'],
+    },
+  ];
+
+  // UI pages catalogue derived from actual *.html files in src/ui/assets/
+  var UI_PAGES = [
+    { page: 'login',            label: 'Login',              keys: ['site_name','login_title','email_label','email_placeholder','password_label','password_placeholder','forgot_password_link','login_button','no_account_text','signup_link','social_divider'] },
+    { page: 'register',         label: 'Register',           keys: ['site_name','register_title','email_label','email_placeholder'] },
+    { page: 'forgot-password',  label: 'Forgot Password',    keys: ['site_name','forgot_password_title','forgot_password_instruction','forgot_password_success','email_label','email_placeholder','send_reset_link_button','remember_password_text','login_link','return_to_login_link'] },
+    { page: 'reset-password',   label: 'Reset Password',     keys: ['site_name','reset_password_title','reset_password_success','new_password_label','new_password_placeholder','confirm_password_label','confirm_password_placeholder','save_password_button','proceed_to_login_link'] },
+    { page: 'verify-email',     label: 'Verify Email',       keys: ['site_name','verify_email_title','verify_email_loading','go_to_login_link'] },
+    { page: '2fa',              label: 'Two-Factor Auth',    keys: ['site_name','two_fa_title','two_fa_setup_instruction','two_fa_code_label','two_fa_code_placeholder','verify_code_button'] },
+    { page: 'magic-link',       label: 'Magic Link landing', keys: ['site_name','magic_link_title','magic_link_instruction','email_label','email_placeholder','send_magic_link_button'] },
+    { page: 'link-verify',      label: 'Link Verify landing',keys: ['site_name','account_linking_title','account_linking_loading','go_to_login_link'] },
+    { page: 'account-conflict', label: 'Account Conflict',   keys: ['site_name','account_linking_title','account_linking_instruction','send_verification_email_button'] },
+  ];
+
   async function renderTemplates() {
     var main = document.getElementById('main');
     main.innerHTML = '<div class="card"><div class="card-header"><h2>Email & UI Templates</h2><span class="meta"><span class="spinner"></span></span></div></div>';
@@ -1370,7 +1460,7 @@
 
     var html = '<div class="card">'
       + '<div class="card-header">'
-      + '<h2>Email & UI Templates</h2>'
+      + '<h2>Email &amp; UI Templates</h2>'
       + '<div style="display:flex;gap:.5rem">'
       + '<button class="btn btn-sm ' + (isMail ? 'btn-primary' : '') + '" onclick="setTemplateType(\'mail\')">Email Templates</button>'
       + '<button class="btn btn-sm ' + (!isMail ? 'btn-primary' : '') + '" onclick="setTemplateType(\'ui\')">UI Translations</button>'
@@ -1383,109 +1473,395 @@
       + '<div class="template-editor-container" id="template-editor">'
       + '<div class="empty">Select an item to edit</div>'
       + '</div>'
+      + '<div class="template-preview-pane" id="template-editor-preview"></div>'
       + '</div>'
       + '</div>';
 
     main.innerHTML = html;
     if (_state.templates.selectedId) {
       if (isMail) {
-        var t = _state.templates.mailTemplates.find(function (x) { return x.id === _state.templates.selectedId; });
-        if (t) editMailTemplate(t.id);
+        editMailTemplate(_state.templates.selectedId);
       } else {
-        var u = _state.templates.uiTranslations.find(function (x) { return x.page === _state.templates.selectedId; });
-        if (u) editUiTranslation(u.page);
+        editUiTranslation(_state.templates.selectedId);
       }
     }
   }
 
   function renderMailTemplateList() {
-    var items = ['magic-link', 'password-reset', 'email-verification', 'invitation', 'otp'];
-    return items.map(function (id) {
-      var isCustom = _state.templates.mailTemplates.some(function (t) { return t.id === id; });
-      var active = _state.templates.selectedId === id ? ' active' : '';
-      return '<div class="template-item' + active + '" onclick="editMailTemplate(\'' + id + '\')">'
-        + id + (isCustom ? ' <small style="color:#10b981">(custom)</small>' : ' <small style="color:#9ca3af">(default)</small>')
+    return MAIL_TEMPLATES.map(function (t) {
+      var isCustom = _state.templates.mailTemplates.some(function (x) { return x.id === t.id; });
+      var active = _state.templates.selectedId === t.id ? ' active' : '';
+      return '<div class="template-item' + active + '" data-tpl-id="' + esc(t.id) + '" onclick="editMailTemplate(\'' + esc(t.id) + '\')">'
+        + '<strong>' + esc(t.label) + '</strong>'
+        + '<small>' + (isCustom ? '\u2728 customised' : 'using default') + '</small>'
         + '</div>';
     }).join('');
   }
 
   function renderUiTranslationList() {
-    var pages = ['login', 'register', 'forgot-password', 'reset-password', 'verify-email', '2fa', 'sms-login', 'common'];
-    return pages.map(function (page) {
-      var isCustom = _state.templates.uiTranslations.some(function (u) { return u.page === page; });
-      var active = _state.templates.selectedId === page ? ' active' : '';
-      return '<div class="template-item' + active + '" onclick="editUiTranslation(\'' + page + '\')">'
-        + page + (isCustom ? ' <small style="color:#10b981">(custom)</small>' : ' <small style="color:#9ca3af">(default)</small>')
+    return UI_PAGES.map(function (p) {
+      var isCustom = _state.templates.uiTranslations.some(function (u) { return u.page === p.page; });
+      var active = _state.templates.selectedId === p.page ? ' active' : '';
+      return '<div class="template-item' + active + '" data-tpl-id="' + esc(p.page) + '" onclick="editUiTranslation(\'' + esc(p.page) + '\')">'
+        + '<strong>' + esc(p.label) + '</strong>'
+        + '<small>' + (isCustom ? '\u2728 customised' : 'using default') + '</small>'
         + '</div>';
     }).join('');
   }
 
+  // Insert text at the caret position of a textarea
+  function insertAtCaret(textarea, text) {
+    if (!textarea) return;
+    var start = textarea.selectionStart;
+    var end = textarea.selectionEnd;
+    var val = textarea.value;
+    textarea.value = val.slice(0, start) + text + val.slice(end);
+    textarea.selectionStart = textarea.selectionEnd = start + text.length;
+    textarea.focus();
+    textarea.dispatchEvent(new Event('input'));
+  }
+
   function editMailTemplate(id) {
     _state.templates.selectedId = id;
+    _state.templates.previewLang = _state.templates.previewLang || 'en';
+    var meta = MAIL_TEMPLATES.find(function (t) { return t.id === id; });
+    var existing = _state.templates.mailTemplates.find(function (x) { return x.id === id; })
+      || { id: id, baseHtml: '', baseText: '', translations: {} };
+
     var container = document.getElementById('template-editor');
-    var t = _state.templates.mailTemplates.find(function (x) { return x.id === id; }) || { id: id, baseHtml: '', baseText: '', translations: {} };
 
-    // In search of default content if empty
-    var defaultHint = 'Default template will be used if left empty.';
+    var varHtml = meta.variables.map(function (v) {
+      return '<span class="template-var-chip" data-insert="{{' + v.name + '}}" title="' + esc(v.description) + '">{{' + v.name + '}}</span>';
+    }).join(' ');
 
-    container.innerHTML = '<div class="template-editor-header">'
-      + '<h3>Editing: ' + id + '</h3>'
-      + '<button class="btn btn-primary btn-sm" onclick="saveMailTemplate(\'' + id + '\')">Save Changes</button>'
+    var tKeysHtml = meta.translationKeys.map(function (k) {
+      return '<span class="template-var-chip" data-insert="{{T.' + k + '}}" title="Translation key">{{T.' + k + '}}</span>';
+    }).join(' ');
+
+    container.innerHTML = ''
+      + '<div class="template-editor-header">'
+      +   '<div><h3>' + esc(meta.label) + '</h3>'
+      +     '<small style="color:#6b7280">' + esc(meta.description) + '</small></div>'
+      +   '<div style="display:flex;gap:.5rem">'
+      +     '<button class="btn btn-sm" onclick="resetMailTemplate(\'' + esc(id) + '\')">Reset to default</button>'
+      +     '<button class="btn btn-primary btn-sm" onclick="saveMailTemplate(\'' + esc(id) + '\')">Save</button>'
+      +   '</div>'
       + '</div>'
       + '<div class="template-editor-body">'
-      + '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">HTML Body</label>'
-      + '<textarea id="tpl-html" class="template-editor-textarea" placeholder="' + defaultHint + '">' + esc(t.baseHtml || '') + '</textarea></div>'
-      + '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Text Body</label>'
-      + '<textarea id="tpl-text" class="template-editor-textarea" style="height:100px" placeholder="' + defaultHint + '">' + esc(t.baseText || '') + '</textarea></div>'
-      + '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">i18n Interpolations (JSON)</label>'
-      + '<textarea id="tpl-i18n" class="template-editor-textarea" style="height:150px" placeholder=\'{"en": {"subject": "Reset Password", "title": "Hello!"}}\'>' + esc(JSON.stringify(t.translations || {}, null, 2)) + '</textarea></div>'
+      +   '<div class="template-vars">'
+      +     '<h4>Template variables</h4>' + varHtml
+      +     '<h4 style="margin-top:.5rem">Translation keys</h4>' + tKeysHtml
+      +     '<div style="color:#6b7280;margin-top:.25rem">Click any chip to insert into the focused textarea.</div>'
+      +   '</div>'
+      +   '<label><strong>HTML body</strong></label>'
+      +   '<textarea id="tpl-html" class="template-editor-textarea">' + esc(existing.baseHtml || '') + '</textarea>'
+      +   '<label><strong>Plain-text body</strong></label>'
+      +   '<textarea id="tpl-text" class="template-editor-textarea" style="min-height:80px">' + esc(existing.baseText || '') + '</textarea>'
+      +   '<label><strong>Translations</strong></label>'
+      +   '<div id="tpl-translations-ui"></div>'
       + '</div>';
 
-    // Update active class in list
-    document.querySelectorAll('.template-list .template-item').forEach(function (el) {
-      el.classList.toggle('active', el.textContent.startsWith(id));
+    _state.templates.editingTranslations = JSON.parse(JSON.stringify(existing.translations || {}));
+
+    renderTranslationsEditor('tpl-translations-ui', existing.translations || {}, meta.translationKeys,
+      function (newTranslations) {
+        _state.templates.editingTranslations = newTranslations;
+        schedulePreview();
+      });
+
+    _state.templates.lastFocus = document.getElementById('tpl-html');
+    ['tpl-html', 'tpl-text'].forEach(function (tid) {
+      var el = document.getElementById(tid);
+      if (!el) return;
+      el.addEventListener('focus', function () { _state.templates.lastFocus = el; });
+      el.addEventListener('input', schedulePreview);
     });
+    container.querySelectorAll('.template-var-chip').forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        insertAtCaret(_state.templates.lastFocus, chip.getAttribute('data-insert'));
+        schedulePreview();
+      });
+    });
+
+    document.querySelectorAll('.template-list .template-item').forEach(function (el) {
+      el.classList.toggle('active', el.getAttribute('data-tpl-id') === id);
+    });
+
+    mountPreviewPane(meta);
+    schedulePreview();
   }
 
   function editUiTranslation(page) {
     _state.templates.selectedId = page;
-    var container = document.getElementById('template-editor');
+    var pageInfo = UI_PAGES.find(function (p) { return p.page === page; });
     var u = _state.templates.uiTranslations.find(function (x) { return x.page === page; }) || { page: page, translations: {} };
+    var container = document.getElementById('template-editor');
+    var suggestedKeys = pageInfo ? pageInfo.keys : [];
 
-    container.innerHTML = '<div class="template-editor-header">'
-      + '<h3>UI Translations: ' + page + '</h3>'
-      + '<button class="btn btn-primary btn-sm" onclick="saveUiTranslation(\'' + page + '\')">Save Changes</button>'
+    container.innerHTML = ''
+      + '<div class="template-editor-header">'
+      +   '<div><h3>' + esc(pageInfo ? pageInfo.label : page) + '</h3>'
+      +     '<small style="color:#6b7280">UI translation overrides for the <code>' + esc(page) + '</code> page.</small></div>'
+      +   '<button class="btn btn-primary btn-sm" onclick="saveUiTranslation(\'' + esc(page) + '\')">Save</button>'
       + '</div>'
       + '<div class="template-editor-body">'
-      + '<div style="background:#fef3c7;padding:.75rem;border-radius:6px;font-size:12px;color:#92400e;margin-bottom:.5rem">'
-      + '\u2139\uFE0F Define translations per language (e.g. "it", "en"). Keys should match data-i18n attributes.'
-      + '</div>'
-      + '<textarea id="ui-i18n" class="template-editor-textarea" style="flex:1" placeholder=\'{"en": {"site_name": "Auth", "login_title": "Sign In"}}\'>' + esc(JSON.stringify(u.translations || {}, null, 2)) + '</textarea>'
+      +   '<div style="background:#fef3c7;padding:.75rem;border-radius:6px;font-size:12px;color:#92400e;margin-bottom:.5rem">'
+      +     '\u2139\uFE0F Keys are the <code>data-i18n</code> attribute values used in <strong>' + esc(page) + '.html</strong>.'
+      +   '</div>'
+      +   '<div id="ui-translations-editor"></div>'
       + '</div>';
 
+    _state.templates.editingTranslations = JSON.parse(JSON.stringify(u.translations || {}));
+
+    renderTranslationsEditor('ui-translations-editor', u.translations || {}, suggestedKeys,
+      function (newTranslations) {
+        _state.templates.editingTranslations = newTranslations;
+      });
+
     document.querySelectorAll('.template-list .template-item').forEach(function (el) {
-      el.classList.toggle('active', el.textContent.startsWith(page));
+      el.classList.toggle('active', el.getAttribute('data-tpl-id') === page);
+    });
+
+    // Clear preview pane for UI translations (no preview needed)
+    var prev = document.getElementById('template-editor-preview');
+    if (prev) prev.innerHTML = '';
+  }
+
+  // Reusable per-language tab + key/value grid translations editor
+  function renderTranslationsEditor(mountId, translations, suggestedKeys, onChange) {
+    var mount = document.getElementById(mountId);
+    if (!mount) return;
+    var state = {
+      data: JSON.parse(JSON.stringify(translations || {})),
+      activeLang: Object.keys(translations || {})[0] || 'en',
+    };
+
+    function render() {
+      var langs = Object.keys(state.data);
+      if (langs.length === 0) { state.data[state.activeLang] = {}; langs = [state.activeLang]; }
+      if (!state.data[state.activeLang]) { state.activeLang = langs[0]; }
+
+      var tabs = langs.map(function (l) {
+        return '<button class="translation-lang-tab' + (l === state.activeLang ? ' active' : '') + '" data-lang="' + esc(l) + '">'
+          + esc(l.toUpperCase())
+          + ' <span onclick="event.stopPropagation()" style="margin-left:.25rem;color:#9ca3af" data-rm-lang="' + esc(l) + '" title="Remove language">\u2715</span></button>';
+      }).join('');
+
+      var activeData = state.data[state.activeLang] || {};
+      var knownKeys = Object.keys(activeData).slice();
+      suggestedKeys.forEach(function (k) { if (knownKeys.indexOf(k) === -1) knownKeys.push(k); });
+
+      var rows = knownKeys.map(function (k) {
+        var val = activeData[k] !== undefined ? activeData[k] : '';
+        return '<input type="text" value="' + esc(k) + '" data-key="' + esc(k) + '" data-role="key">'
+          + '<input type="text" value="' + esc(val) + '" data-key="' + esc(k) + '" data-role="value" placeholder="(not set)">'
+          + '<button class="btn btn-sm btn-danger" data-rm-key="' + esc(k) + '" title="Remove key">\u2715</button>';
+      }).join('');
+
+      mount.innerHTML = ''
+        + '<div class="translation-lang-tabs">'
+        +   tabs
+        +   '<button class="translation-lang-tab" data-add-lang="1" title="Add language">+ Add lang</button>'
+        + '</div>'
+        + '<div class="translation-grid">'
+        +   '<strong style="font-size:.75rem;text-transform:uppercase;color:#6b7280">Key</strong>'
+        +   '<strong style="font-size:.75rem;text-transform:uppercase;color:#6b7280">Value</strong>'
+        +   '<span></span>'
+        +   rows
+        + '</div>'
+        + '<div style="display:flex;gap:.375rem;margin-top:.5rem">'
+        +   '<input type="text" id="' + mountId + '-newkey" placeholder="new key" style="flex:1">'
+        +   '<button class="btn btn-sm" data-add-key="1">+ Add key</button>'
+        + '</div>';
+
+      mount.querySelectorAll('.translation-lang-tab[data-lang]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          state.activeLang = btn.getAttribute('data-lang');
+          render();
+        });
+      });
+      mount.querySelectorAll('[data-rm-lang]').forEach(function (x) {
+        x.addEventListener('click', function () {
+          var l = x.getAttribute('data-rm-lang');
+          if (!confirm('Remove all "' + l + '" translations?')) return;
+          delete state.data[l];
+          state.activeLang = Object.keys(state.data)[0] || 'en';
+          onChange(state.data);
+          render();
+        });
+      });
+      var addLangBtn = mount.querySelector('[data-add-lang]');
+      if (addLangBtn) {
+        addLangBtn.addEventListener('click', function () {
+          var l = prompt('Language code (e.g. "fr", "de", "es"):');
+          if (!l) return;
+          l = l.trim().toLowerCase();
+          if (!/^[a-z]{2,3}(-[a-z0-9]+)*$/.test(l)) { alert('Invalid language code'); return; }
+          if (state.data[l]) { state.activeLang = l; render(); return; }
+          state.data[l] = {};
+          state.activeLang = l;
+          onChange(state.data);
+          render();
+        });
+      }
+      mount.querySelectorAll('input[data-role="value"]').forEach(function (inp) {
+        inp.addEventListener('input', function () {
+          var k = inp.getAttribute('data-key');
+          if (!state.data[state.activeLang]) state.data[state.activeLang] = {};
+          state.data[state.activeLang][k] = inp.value;
+          onChange(state.data);
+        });
+      });
+      mount.querySelectorAll('input[data-role="key"]').forEach(function (inp) {
+        inp.addEventListener('change', function () {
+          var oldK = inp.getAttribute('data-key');
+          var newK = inp.value.trim();
+          if (!newK || newK === oldK) { inp.value = oldK; return; }
+          if (state.data[state.activeLang][newK] !== undefined) { alert('Key already exists'); inp.value = oldK; return; }
+          state.data[state.activeLang][newK] = state.data[state.activeLang][oldK];
+          delete state.data[state.activeLang][oldK];
+          onChange(state.data);
+          render();
+        });
+      });
+      mount.querySelectorAll('[data-rm-key]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var k = btn.getAttribute('data-rm-key');
+          delete state.data[state.activeLang][k];
+          onChange(state.data);
+          render();
+        });
+      });
+      var addKeyBtn = mount.querySelector('[data-add-key]');
+      if (addKeyBtn) {
+        addKeyBtn.addEventListener('click', function () {
+          var ip = document.getElementById(mountId + '-newkey');
+          var k = ip ? ip.value.trim() : '';
+          if (!k) return;
+          if (!state.data[state.activeLang]) state.data[state.activeLang] = {};
+          if (state.data[state.activeLang][k] !== undefined) { alert('Key already exists'); return; }
+          state.data[state.activeLang][k] = '';
+          if (ip) ip.value = '';
+          onChange(state.data);
+          render();
+        });
+      }
+    }
+
+    render();
+  }
+
+  // ---- Live preview helpers -------------------------------------------------
+
+  function schedulePreview() {
+    clearTimeout(_state.templates.previewTimer);
+    _state.templates.previewTimer = setTimeout(renderPreviewNow, 100);
+  }
+
+  function renderPreviewNow() {
+    var id = _state.templates.selectedId;
+    if (!id) return;
+    var meta = MAIL_TEMPLATES.find(function (t) { return t.id === id; });
+    if (!meta) return;
+    var htmlEl = document.getElementById('tpl-html');
+    var textEl = document.getElementById('tpl-text');
+    var html = htmlEl ? htmlEl.value : '';
+    var text = textEl ? textEl.value : '';
+    var translations = _state.templates.editingTranslations || {};
+    var lang = _state.templates.previewLang || 'en';
+    var trans = translations[lang] || translations['en'] || {};
+
+    var sample = {};
+    meta.variables.forEach(function (v) { sample[v.name] = '\xAB' + v.name + '\xBB'; });
+    if (sample['link'] !== undefined) sample['link'] = 'https://example.com/action?token=XXXX';
+    if (sample['loginUrl'] !== undefined) sample['loginUrl'] = 'https://example.com/login';
+    if (sample['tempPassword'] !== undefined) sample['tempPassword'] = 'TempPw123!';
+    if (sample['newEmail'] !== undefined) sample['newEmail'] = 'new.address@example.com';
+    if (sample['token'] !== undefined) sample['token'] = 'abc123\u2026';
+
+    function interpolate(str) {
+      var out = String(str || '').replace(/\{\{T\.([^}]+)\}\}/g, function (_, k) {
+        return trans[k] !== undefined ? trans[k] : ('[' + k + ']');
+      });
+      out = out.replace(/\{\{([^}]+)\}\}/g, function (m, k) {
+        if (k.indexOf('T.') === 0) return m;
+        return sample[k] !== undefined ? sample[k] : ('[' + k + ']');
+      });
+      return out;
+    }
+
+    var subject = interpolate(trans['subject'] || '(no subject key set)');
+    var rendered = interpolate(html);
+    var renderedText = interpolate(text);
+
+    var subjEl = document.getElementById('preview-subject');
+    if (subjEl) subjEl.textContent = 'Subject: ' + subject;
+
+    var iframe = document.getElementById('preview-iframe');
+    if (iframe) {
+      // Use srcdoc to render admin-authored HTML inside a fully sandboxed iframe.
+      // sandbox="" prevents scripts, forms, top-navigation, plugins, and all other
+      // active content — the admin can only see a styled preview of their own HTML.
+      var previewDoc = '<!DOCTYPE html><html><head><meta charset="utf-8">'
+        + '<style>body{font:14px system-ui;padding:12px;margin:0;color:#111}a{color:#3b82f6}</style>'
+        + '</head><body>' + rendered + '</body></html>';
+      iframe.srcdoc = previewDoc;
+    }
+
+    var textPrev = document.getElementById('preview-text');
+    if (textPrev) textPrev.textContent = renderedText || '(empty)';
+  }
+
+  function mountPreviewPane(meta) {
+    var main = document.getElementById('template-editor-preview');
+    if (!main) return;
+    var langs = Object.keys(_state.templates.editingTranslations || {});
+    if (langs.length === 0) langs = ['en'];
+    var langBtns = langs.map(function (l) {
+      return '<button class="' + (l === (_state.templates.previewLang || 'en') ? 'active' : '') + '" data-preview-lang="' + esc(l) + '">' + esc(l.toUpperCase()) + '</button>';
+    }).join('');
+
+    main.innerHTML = ''
+      + '<strong style="font-size:.75rem;text-transform:uppercase;color:#6b7280">Live preview</strong>'
+      + '<div class="template-preview-lang">' + langBtns + '</div>'
+      + '<div class="template-preview-subject" id="preview-subject">Subject: \u2026</div>'
+      + '<iframe class="template-preview-iframe" id="preview-iframe" sandbox=""></iframe>'
+      + '<details><summary style="cursor:pointer;font-size:.75rem;color:#6b7280">Plain-text</summary>'
+      +   '<pre id="preview-text" style="background:white;padding:.5rem;border-radius:4px;white-space:pre-wrap;font-size:.75rem"></pre>'
+      + '</details>';
+
+    main.querySelectorAll('[data-preview-lang]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        _state.templates.previewLang = b.getAttribute('data-preview-lang');
+        mountPreviewPane(meta);
+        schedulePreview();
+      });
     });
   }
 
   async function saveMailTemplate(id) {
+    var baseHtml = document.getElementById('tpl-html').value;
+    var baseText = document.getElementById('tpl-text').value;
+    var translations = _state.templates.editingTranslations || {};
     try {
-      var baseHtml = document.getElementById('tpl-html').value;
-      var baseText = document.getElementById('tpl-text').value;
-      var i18nRaw = document.getElementById('tpl-i18n').value;
-      var translations = i18nRaw ? JSON.parse(i18nRaw) : {};
-
       await api('POST', '/api/templates/mail', { id: id, baseHtml: baseHtml, baseText: baseText, translations: translations });
-      flash('Mail template saved');
+      flash('Template saved');
+      renderTemplates();
+    } catch (e) { flash(e.message, 'error'); }
+  }
+
+  async function resetMailTemplate(id) {
+    if (!confirm('Reset "' + id + '" to the built-in default? Custom content will be lost.')) return;
+    try {
+      await api('POST', '/api/templates/mail', { id: id, baseHtml: '', baseText: '', translations: {} });
+      flash('Template reset to default');
       renderTemplates();
     } catch (e) { flash(e.message, 'error'); }
   }
 
   async function saveUiTranslation(page) {
+    var translations = _state.templates.editingTranslations || {};
     try {
-      var i18nRaw = document.getElementById('ui-i18n').value;
-      var translations = i18nRaw ? JSON.parse(i18nRaw) : {};
-
       await api('POST', '/api/templates/ui', { page: page, translations: translations });
       flash('UI translations saved');
       renderTemplates();
@@ -1503,6 +1879,7 @@
   window.editUiTranslation = editUiTranslation;
   window.saveMailTemplate = saveMailTemplate;
   window.saveUiTranslation = saveUiTranslation;
+  window.resetMailTemplate = resetMailTemplate;
   window.deleteUser = deleteUser;
   window.setBulk2FA = setBulk2FA;
   window.renderSessions = renderSessions;
@@ -1542,9 +1919,6 @@
   window.createWebhook = createWebhook;
   window.toggleWebhook = toggleWebhook;
   window.deleteWebhook = deleteWebhook;
-  window.showTab = showTab;
-  window.doLogin = doLogin;
-  window.doLogout = doLogout;
   window._state = _state;
 
   // ---- Init ----------------------------------------------------------------

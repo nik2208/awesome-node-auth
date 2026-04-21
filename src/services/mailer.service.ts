@@ -155,7 +155,7 @@ export class MailerService {
     const l = this.resolveLang(lang);
     if (this.templateStore) {
       const tpl = await this.templateStore.getMailTemplate(templateId);
-      if (tpl) {
+      if (tpl && tpl.baseHtml && tpl.baseText) {
         const translations = tpl.translations[l] || tpl.translations['en'] || {};
         
         const interpolate = (str: string) => {
@@ -169,7 +169,7 @@ export class MailerService {
           return result;
         };
 
-        const subject = translations['subject'] || tpl.id;
+        const subject = translations['subject'] || fallback(l).subject;
         return {
           subject: interpolate(subject),
           html: interpolate(tpl.baseHtml),

@@ -24,7 +24,7 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 const os = require('os');
-const { AuthConfigurator, createAdminRouter, buildUiRouter, PasswordService } = require('awesome-node-auth');
+const { AuthConfigurator, createAdminRouter, buildUiRouter, PasswordService, MemoryTemplateStore } = require('awesome-node-auth');
 
 const passwordService = new PasswordService();
 
@@ -178,6 +178,11 @@ const settingsStore = {
 // Uses the system temp directory so this works in any environment (including StackBlitz).
 const UPLOAD_DIR = path.join(os.tmpdir(), 'awesome-node-auth-demo-uploads');
 
+// Template store — enables the 📧 Email & UI Templates tab in the admin panel.
+// Use MemoryTemplateStore for development; swap for a DB-backed implementation in production.
+// Wire to both AuthConfigurator (email template overrides) and createAdminRouter (admin editor).
+const templateStore = new MemoryTemplateStore();
+
 const app = express();
 
 app.use(express.json());
@@ -221,7 +226,10 @@ const authConfig = {
   },
 };
 
-const auth = new AuthConfigurator(authConfig, userStore);
+const auth = new AuthConfigurator(
+  { ...authConfig, templateStore },  // templateStore enables email template overrides
+  userStore,
+);
 
 // Mount the auth router  →  POST /auth/register, POST /auth/login, GET /auth/me, …
 // Pass onRegister so the POST /auth/register endpoint is enabled.
@@ -257,6 +265,7 @@ app.use('/auth/ui', buildUiRouter({
     onRegister: async (data) => data,  // same handler as above, required for register page
   },
   settingsStore,          // runtime theme customization (colors, logo, etc.)
+  templateStore,          // enables i18n injection into built-in UI pages
   uploadDir: UPLOAD_DIR,  // serve uploaded logo / background images
   apiPrefix: '/auth',
 }));
@@ -267,6 +276,7 @@ app.use('/admin', createAdminRouter(userStore, {
   jwtSecret: process.env.ACCESS_TOKEN_SECRET || 'dev-secret',
   accessPolicy: 'first-user',
   settingsStore,          // enables ⚙️ Control tab + 🎨 UI Customization panel
+  templateStore,          // enables 📧 Email & UI Templates tab (live editor + preview)
   uploadDir: UPLOAD_DIR,  // enables file upload for logo and background image
   // Must match where buildUiRouter is mounted + '/assets/uploads':
   uploadBaseUrl: '/auth/ui/assets/uploads',
