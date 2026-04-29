@@ -35,6 +35,114 @@ export interface MailerConfig {
   defaultLang?: 'en' | 'it';
 }
 
+/**
+ * Identity Provider (IdP) mode configuration block.
+ *
+ * When `enabled`, this instance acts as a central Identity Provider:
+ * - Generates/loads an RSA-2048 keypair and signs JWTs with RS256
+ * - Exposes a public JWKS endpoint so downstream Resource Servers can
+ *   verify tokens without sharing a secret
+ *
+ * All existing HS256 behaviour is preserved and the two modes can coexist.
+ */
+export interface IdProviderConfig {
+  /**
+   * Enable IdP mode. When true (or when `privateKey` is set), `TokenService.generateIdProviderTokenPair()`
+   * signs with RS256 and a JWKS endpoint is auto-registered.
+   * Presence of `privateKey` is sufficient — `enabled: true` is not required.
+   * @default false
+   */
+  enabled?: boolean;
+
+  /**
+   * PEM-encoded RSA private key. If omitted a keypair is auto-generated
+   * at startup and stored in memory (ephemeral — for dev only).
+   * In production inject via environment variable.
+   */
+  privateKey?: string;
+
+  /**
+   * PEM-encoded RSA public key. Auto-derived from `privateKey` if omitted.
+   */
+  publicKey?: string;
+
+  /**
+   * Path at which the JWKS endpoint is exposed.
+   * @default '/.well-known/jwks.json'
+   */
+  jwksPath?: string;
+
+  /**
+   * `iss` (issuer) claim embedded in every IdP-issued JWT.
+   * Resource Servers validate this claim.
+   * When omitted, no `iss` claim is embedded in the JWT.
+   * Example: `'https://auth.myplatform.com'`
+   */
+  issuer?: string;
+
+  /**
+   * Default token expiry for IdP-issued tokens.
+   * Overrides `accessTokenExpiresIn` when IdP mode is enabled.
+   * @default '30d'
+   */
+  tokenExpiry?: string;
+
+  /**
+   * Refresh token expiry for IdP-issued tokens.
+   * In IdP mode the refresh token is also signed with RS256 using the same private key.
+   * Falls back to `AuthConfig.refreshTokenExpiresIn` when omitted.
+   * @default '90d'
+   */
+  refreshTokenExpiry?: string;
+
+  /**
+   * CORS origins allowed to fetch the JWKS endpoint.
+   * @default '*'
+   */
+  jwksCorsOrigins?: string | string[];
+}
+
+/**
+ * Resource Server mode configuration block.
+ *
+ * When `enabled`, this instance validates incoming Bearer tokens against a
+ * remote JWKS endpoint (issued by a central IdP) instead of a local secret.
+ * Login/register routes are not registered.
+ */
+export interface ResourceServerConfig {
+  /**
+   * Enable Resource Server mode. When true, the auth middleware switches to
+   * JWKS-based verification for Bearer tokens.
+   * @default false
+   */
+  enabled: boolean;
+
+  /**
+   * Full URL of the IdP's JWKS endpoint.
+   * Example: `'https://auth.myplatform.com/.well-known/jwks.json'`
+   */
+  jwksUrl: string;
+
+  /**
+   * Expected `iss` claim. Tokens with a different issuer are rejected.
+   * When omitted, the `iss` claim on incoming tokens is not validated.
+   */
+  issuer?: string;
+
+  /**
+   * JWKS public key cache TTL in milliseconds.
+   * The key is re-fetched once per TTL to support key rotation.
+   * @default 3_600_000 (1 hour)
+   */
+  jwksCacheTtl?: number;
+
+  /**
+   * Timeout in ms for the JWKS fetch request.
+   * @default 5000
+   */
+  jwksFetchTimeout?: number;
+}
+
 export interface AuthConfig {
   accessTokenSecret: string;
   refreshTokenSecret: string;
@@ -290,4 +398,16 @@ export interface AuthConfig {
    * Optional template store for custom email and UI translations.
    */
   templateStore?: ITemplateStore;
+
+  /**
+   * Identity Provider (IdP) mode configuration.
+   * See {@link IdProviderConfig} for full field documentation.
+   */
+  idProvider?: IdProviderConfig;
+
+  /**
+   * Resource Server mode configuration.
+   * See {@link ResourceServerConfig} for full field documentation.
+   */
+  resourceServer?: ResourceServerConfig;
 }

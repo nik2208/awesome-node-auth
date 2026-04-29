@@ -5,6 +5,42 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.9.0] — 2026-04-29
+
+### Added
+
+#### Identity Provider (IdP) mode — RS256 + JWKS
+- **`idProvider` config block** — enables RS256-signed JWTs and exposes a public JWKS endpoint (`GET /.well-known/jwks.json` by default). When `privateKey` is omitted an ephemeral RSA-2048 keypair is auto-generated at startup (dev only).
+- **`resourceServer` config block** — turns any instance into a downstream Resource Server that validates Bearer tokens via JWKS without sharing secrets.
+- **`JwksService`** static class — `generateKeypair()`, `derivePublicKey()`, `publicKeyToJwk()`, `buildJwksDocument()`, `jwkToPublicKey()`, `createRemoteClient()`; all using Node.js built-in `crypto`.
+- **`JwksClient`** — cached JWKS fetching with stale-while-revalidate TTL, `getKey(kid)` lookup, and automatic cache invalidation on unknown `kid` for seamless key rotation.
+- **`createJwksAuthMiddleware()`** — auth middleware for Resource Servers: Bearer → JWKS RS256 validation; cookie fallback → local HS256 for SSR dashboard pages.
+- **`TokenService.generateIdProviderTokenPair()`** — issues RS256-signed access **and** refresh tokens with `iss` claim and `kid` JOSE header parameter (RFC 7515 §4.1.4).
+- **`TokenService.verifyWithJwks()`** — validates a token via `JwksClient`, enforces issuer, retries with cache invalidation on key rotation.
+- **`IdProviderConfig` / `ResourceServerConfig`** interfaces — exported from the main entry point.
+- **New exports**: `JwksService`, `JwksClient`, `JWK`, `JwksDocument`, `JwksClientOptions`, `createJwksAuthMiddleware`, `IdProviderConfig`, `ResourceServerConfig`.
+- **26 new tests** — `tests/jwks.service.test.ts` (18) and `tests/jwks-auth.middleware.test.ts` (8) covering the full IdP/RS surface.
+- **Zero new npm dependencies** — implemented entirely with Node.js built-in `crypto` and `https` modules.
+
+> **Spec note:** `kid` is a JOSE header parameter (RFC 7515 §4.1.4), not a JWT payload claim. Both access and refresh tokens are RS256-signed in IdP mode to prevent HS256 downgrade attacks on the refresh flow.
+
+#### Flutter client support
+- **`awesome-node-auth-flutter`** package support added to MCP server docs, tools, and prompts — guides agents through integrating the Dart/Flutter client with a node-auth backend.
+
+#### MCP server — v1.9.0 updates
+- **`setup-idp-mode` prompt** — guides agents through Provisioner and/or Resource Server setup, keypair generation, JWKS verification, and the full docker-compose scaffold.
+- **`scaffold_idp_project` tool** — generates a ready-to-run Provisioner + Resource Server skeleton (or both with a shared `docker-compose.yml` and `.env.example`).
+- **`docs.ts` resource** — new IdP mode section covering `IdProviderConfig`, `ResourceServerConfig`, `JwksService` API, `createJwksAuthMiddleware`, key rotation, and production checklist.
+- Version fallback in `mcp-server/src/tools/version.ts` bumped to `1.9.0`.
+
+#### Wiki
+- **`advanced/idp-mode.md`** — new page covering architecture, config reference, token signing behaviour, JWKS endpoint, Resource Server validation, key rotation, and security checklist.
+- `sidebars.ts` updated to include `advanced/idp-mode`.
+- `advanced/index.md` table updated with IdP Mode row.
+- `wiki/package.json` bumped to `1.9.0`.
+
+---
+
 ## [1.8.4] - 2026-04-18
 
 ### Fixed
@@ -296,12 +332,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
-## [1.6.x and later] — Beyond this CHANGELOG
-
-Refer to the [GitHub Releases](https://github.com/nik2208/node-auth/releases) page for future versions.
-
----
-
 ## Version History Quick Reference
 
 | Version | Date | Theme |
@@ -312,3 +342,7 @@ Refer to the [GitHub Releases](https://github.com/nik2208/node-auth/releases) pa
 | 1.3.0 | 2026-03-14 | CSRF cookie-tossing protection, Angular library, MCP tools expansion |
 | 1.4.x | 2026-03-17 | Headless UI mode, origin-based fetch interceptor, `__Host-` cookie path fix |
 | 1.5.0 | 2026-03-18 | Hybrid stateful sessions, device management API, SESSION_REVOKED loop fix |
+| 1.6.0 | 2026-03-21 | Dynamic email templates, UI i18n, `ITemplateStore`, admin template editor |
+| 1.7.0 | 2026-03-30 | Framework-agnostic HTTP types, Fastify adapter |
+| 1.8.x | 2026-03-30–04-18 | Multi-channel notify, session-based admin auth, admin UI improvements |
+| 1.9.0 | 2026-04-29 | IdP mode (RS256 + JWKS), Resource Server middleware, Flutter client support |

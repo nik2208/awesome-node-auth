@@ -6,15 +6,15 @@
 ![license](https://img.shields.io/github/license/nik2208/awesome-node-auth)
 ![github stars](https://img.shields.io/github/stars/nik2208/awesome-node-auth)
 [![](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/nik2208)
-![](https://pixel.applikat.it/pixel.gif?site=awesomenodeauth.com)
-![](https://umami.applikat.it/p/XDb4MrjuD)
+[![](https://pixel.applikat.it/pixel.gif?site=awesomenodeauth.com)]()
+[![](https://umami.applikat.it/p/XDb4MrjuD)]()
 
 [![NPM](https://nodei.co/npm/awesome-node-auth.png?downloads=true&downloadRank=true)](https://nodei.co/npm/awesome-node-auth/)
 
 
 A production-ready, **database-agnostic** JWT authentication and communication bus for Node.js written in TypeScript. It establishes a 360-degree communication and access control layer compatible with any Node.js framework (NestJS, Next.js, Express, Fastify, etc.) and any database through a simple interface pattern.
 
-**awesome-node-auth** is the simple answer to the management complexity and enterprise subscriptions often required for best-practice authentication. Solutions like *Supertokens* are extremely complex, paid if managed, and limited or hard to maintain if self-hosted. *Supabase* is heavy, packed with features you're forced to carry along even if you don't need them, and similarly limited when self-hosted. **awesome-node-auth** gives you the same enterprise-grade features without the architectural bloat or vendor lock-in of cloud platforms.
+**awesome-node-auth** is the simple answer to the management complexity and enterprise subscriptions often required for best-practice authentication. Solutions like *Supertokens* are extremely complex, paid if managed, and limited or hard to maintain if self-hosted. *Supabase* is heavy, packed with features you’re forced to carry along even if you don’t need them, and similarly limited when self-hosted. **awesome-node-auth** gives you the same enterprise-grade features without the architectural bloat or vendor lock-in of cloud platforms.
 
 ## Installation
 
@@ -54,37 +54,37 @@ app.listen(3000);
 ```
 ## Features
 
-- 🔐 **JWT Authentication** – Access & refresh token pair with HttpOnly cookies or bearer tokens
-- 🔄 **Stateful Sessions (v1.5.0)** – Hybrid JWT + store validation with real-time revocation
-- 🏠 **Local Strategy** – Email/password auth with bcrypt hashing and password reset
-- 🔄 **OAuth 2.0** – Google, GitHub, or any custom provider via `GenericOAuthStrategy`
-- 🪄 **Magic Links** – Passwordless email login; first magic-link counts as email verification
-- 📱 **SMS OTP** – Phone number verification via one-time codes
-- 🔑 **TOTP 2FA** – Time-based OTP compatible with Google Authenticator and Authy
-- 🔒 **Flexible 2FA** – `require2FA` works with any channel (TOTP, SMS, magic-link), including OAuth
-- 🔗 **Account Linking** – Link multiple OAuth providers; conflict resolution via `IPendingLinkStore`
-- 🗃️ **Database Agnostic** – Implement one interface (`IUserStore`) for any database
-- 🧩 **Strategy Pattern** – Plug in only the auth methods your app needs
-- 🛡️ **Middleware** – JWT verification middleware (cookie or `Authorization: Bearer`)
-- 🚀 **Express Router** – Drop-in `/auth` router with all endpoints pre-wired
-- 📝 **Register Endpoint** – Optional `POST /auth/register` via `onRegister` callback
-- 👤 **Rich `/me` Profile** – Returns profile, metadata, roles, and permissions
-- 🧹 **Session Cleanup** – Optional `POST /auth/sessions/cleanup` for cron-based expiry
-- 🔒 **CSRF Protection** – Double-submit cookie pattern, opt-in via `csrf.enabled`
-- 🏷️ **Custom JWT Claims** – Inject project-specific data via `buildTokenPayload`
-- 📋 **User Metadata** – Arbitrary per-user key/value store via `IUserMetadataStore`
-- 🛡️ **Roles & Permissions** – RBAC with tenant awareness via `IRolesPermissionsStore`
-- 📅 **Device Management** – Built-in session listing & revocation endpoints via `ISessionStore`
-- 🏢 **Multi-Tenancy** – Isolated multi-tenant apps via `ITenantStore`
-- 🗑️ **Account Deletion** – `DELETE /auth/account` self-service removal with full cleanup
-- 📧 **Email Verification** – `none` / `lazy` (configurable grace period) / `strict` modes
-- 🎨 **Dynamic Templates (v1.6.0)** – `ITemplateStore` for custom mail templates and UI i18n
-- 📡 **Event-Driven Tools** – `AuthEventBus`, telemetry, SSE, outgoing/inbound webhooks
-- 🔑 **API Keys** – M2M bcrypt-hashed keys with scopes, expiry, IP allowlist, audit log
-- 📖 **OpenAPI / Swagger UI** – Auto-generated specs for auth, admin, and tools routers
-- 🪝 **Inbound/Outbound Webhooks management** - Easy webhook implementation
-- ⚙️ **Integrated Admin UI** - Integrate with AdminJS for Auth-related management
-- 🎨 **Built-in UI** – Optional zero-dependency HTML/CSS/JS UI served at `<apiPrefix>/ui/`, self-configuring via a `/config` endpoint (with **Headless Mode** for SPAs)
+- 🔐 **JWT Authentication** — Access & refresh token pair with HttpOnly cookies or bearer tokens
+- 📄 **Stateful Sessions (v1.5.0)** — Hybrid JWT + store validation with real-time revocation
+- 🔎 **Local Strategy** — Email/password auth with bcrypt hashing and password reset
+- 🔄 **OAuth 2.0** — Google, GitHub, or any custom provider via `GenericOAuthStrategy`
+- 🪄 **Magic Links** — Passwordless email login; first magic-link counts as email verification
+- 📱 **SMS OTP** — Phone number verification via one-time codes
+- 🔑 **TOTP 2FA** — Time-based OTP compatible with Google Authenticator and Authy
+- 🔒 **Flexible 2FA** — `require2FA` works with any channel (TOTP, SMS, magic-link), including OAuth
+- 🔗 **Account Linking** — Link multiple OAuth providers; conflict resolution via `IPendingLinkStore`
+- 🗃️ **Database Agnostic** — Implement one interface (`IUserStore`) for any database
+- 🧩 **Strategy Pattern** — Plug in only the auth methods your app needs
+- 🛡️ **Middleware** — JWT verification middleware (cookie or `Authorization: Bearer`)
+- 🚠 **Express Router** — Drop-in `/auth` router with all endpoints pre-wired
+- 📝 **Register Endpoint** — Optional `POST /auth/register` via `onRegister` callback
+- 👤 **Rich `/me` Profile** — Returns profile, metadata, roles, and permissions
+- 🗩 **Session Cleanup** — Optional `POST /auth/sessions/cleanup` for cron-based expiry
+- 🔒 **CSRF Protection** — Double-submit cookie pattern, opt-in via `csrf.enabled`
+- 🔏️ **Custom JWT Claims** — Inject project-specific data via `buildTokenPayload`
+- 📆 **User Metadata** — Arbitrary per-user key/value store via `IUserMetadataStore`
+- 🗡️ **Roles & Permissions** — RBAC with tenant awareness via `IRolesPermissionsStore`
+- 📅 **Device Management** — Built-in session listing & revocation endpoints via `ISessionStore`
+- 🞢 **Multi-Tenancy** — Isolated multi-tenant apps via `ITenantStore`
+- 🗑️ **Account Deletion** — `DELETE /auth/account` self-service removal with full cleanup
+- 📧 **Email Verification** — `none` / `lazy` (configurable grace period) / `strict` modes
+- 🎮 **Dynamic Templates (v1.6.0)** — `ITemplateStore` for custom mail templates and UI i18n
+- 📡 **Event-Driven Tools** — `AuthEventBus`, telemetry, SSE, outgoing/inbound webhooks
+- 🔑 **API Keys** — M2M bcrypt-hashed keys with scopes, expiry, IP allowlist, audit log
+- 📖 **OpenAPI / Swagger UI** — Auto-generated specs for auth, admin, and tools routers
+- 🦝 **Inbound/Outbound Webhooks management** - Easy webhook implementation
+- ☠️ **Integrated Admin UI** - Integrate with AdminJS for Auth-related management
+- 🎨 **Built-in UI** — Optional zero-dependency HTML/CSS/JS UI served at `<apiPrefix>/ui/`, self-configuring via a `/config` endpoint (with **Headless Mode** for SPAs)
 
 ## Database Integration — Implementing IUserStore
 
@@ -97,7 +97,7 @@ The library is **completely database-agnostic**. The only coupling point to your
 import { IUserStore, BaseUser } from 'awesome-node-auth';
 
 export class MyUserStore implements IUserStore {
-  // ---- Required: core CRUD ---------------------------------------------------
+  // ---- Required: core CRUD -------------------------------------------------------
 
   /** Find a user by email address (used for login, magic link, password reset). */
   async findByEmail(email: string): Promise<BaseUser | null> { /* ... */ }
@@ -105,10 +105,10 @@ export class MyUserStore implements IUserStore {
   /** Find a user by primary key (used for token refresh, 2FA, SMS). */
   async findById(id: string): Promise<BaseUser | null> { /* ... */ }
 
-  /** Create a new user (used by OAuth strategies when user doesn't exist yet). */
+  /** Create a new user (used by OAuth strategies when user doesn’t exist yet). */
   async create(data: Partial<BaseUser>): Promise<BaseUser> { /* ... */ }
 
-  // ---- Required: token field updates ----------------------------------------
+  // ---- Required: token field updates -----------------------------------------------
 
   async updateRefreshToken(userId: string, token: string | null, expiry: Date | null): Promise<void> { /* ... */ }
   async updateResetToken(userId: string, token: string | null, expiry: Date | null): Promise<void> { /* ... */ }
@@ -117,7 +117,7 @@ export class MyUserStore implements IUserStore {
   async updateMagicLinkToken(userId: string, token: string | null, expiry: Date | null): Promise<void> { /* ... */ }
   async updateSmsCode(userId: string, code: string | null, expiry: Date | null): Promise<void> { /* ... */ }
 
-  // ---- Optional: token look-ups (required for specific features) ------------
+  // ---- Optional: token look-ups (required for specific features) ------------------
 
   /**
    * Required for: POST /auth/reset-password
@@ -133,7 +133,7 @@ export class MyUserStore implements IUserStore {
 
   /**
    * Optional but recommended for OAuth strategies.
-   * Look up a user by the OAuth provider name and the provider's opaque user ID
+   * Look up a user by the OAuth provider name and the provider’s opaque user ID
    * (stored in `BaseUser.providerAccountId`).  Use this instead of (or in addition
    * to) `findByEmail` in `findOrCreateUser` to prevent account-takeover attacks.
    */
@@ -151,7 +151,7 @@ The `examples/` directory contains complete implementations for the most common 
 | `examples/sqlite-user-store.example.ts` | `better-sqlite3` store — production-ready SQL example |
 | `examples/mysql-user-store.example.ts` | `mysql2` store — MySQL / MariaDB example |
 | `examples/mongodb-user-store.example.ts` | `mongodb` store — MongoDB example |
-| *No code file needed* | `PostgREST` / `PHP-CRUD-API` integrations — wrap the generic `fetch` API and you won't need to write any SQL ([see the wiki](https://www.awesomenodeauth.com/docs/database/database)) |
+| *No code file needed* | `PostgREST` / `PHP-CRUD-API` integrations — wrap the generic `fetch` API and you won’t need to write any SQL ([see the wiki](https://www.awesomenodeauth.com/docs/database/database)) |
 | `examples/nestjs-integration.example.ts` | NestJS module, guard, controller and DI integration |
 | `examples/nextjs-integration.example.ts` | Next.js App Router & Pages Router integration |
 
@@ -239,7 +239,7 @@ public API.
 | `AuthRequest` | Minimal request shape (headers, cookies, body, params, query, user, …) |
 | `AuthResponse` | Minimal response shape (status, json, cookie, redirect, …) |
 | `AuthNextFunction` | `(err?: any) => void` |
-| `AuthRequestHandler` | `(req: any, res: any, next) => void \| Promise<void>` — accepts any Express/Fastify middleware |
+| `AuthRequestHandler` | `(req: any, res: any, next) => void | Promise<void>` — accepts any Express/Fastify middleware |
 | `AuthRouter` | Route-registration interface |
 | `expressAdapter(fn)` | Cast `AuthRequestHandler` → Express `RequestHandler` (zero runtime cost) |
 | `fastifyAdapter(fn)` | Wrap `AuthRequestHandler` as a Fastify `preHandler` hook via `req.raw` |
@@ -312,7 +312,7 @@ See `examples/nextjs-integration.example.ts` for a full working example that cov
 ```typescript
 // pages/api/auth/[...auth].ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getAuth } from '../../lib/auth';
+import { getAuth } from '../../../lib/auth';
 
 export const config = { api: { bodyParser: false } };
 
@@ -353,7 +353,7 @@ When you mount `auth.router()`, the following endpoints are available:
 | `POST` | `/auth/login` | Login with email/password |
 | `POST` | `/auth/logout` | Logout and clear cookies |
 | `POST` | `/auth/refresh` | Refresh access token |
-| `GET` | `/auth/me` | Get current user's rich profile (protected) |
+| `GET` | `/auth/me` | Get current user’s rich profile (protected) |
 | `POST` | `/auth/forgot-password` | Send password reset email |
 | `POST` | `/auth/reset-password` | Reset password with token |
 | `POST` | `/auth/change-password` | Change password (authenticated, requires `currentPassword` + `newPassword`) |
@@ -403,7 +403,7 @@ app.use('/auth', createAuthRouter(userStore, config, {
 ### Dynamic Email Links (`siteUrl`)
 When the router receives a request from an allowed origin, it dynamically sets that origin as the base URL for any emails sent during that request (like magic links or password resets). This ensures users are redirected back to the exact frontend they initiated the request from.
 
-The `config.email.siteUrl` acts as a fallback for requests that don't pass an `Origin` header (like server-to-server calls).
+The `config.email.siteUrl` acts as a fallback for requests that don’t pass an `Origin` header (like server-to-server calls).
 
 ### Cross-Origin Cookies & CSRF
 If your frontend and backend share the **same parent domain** (e.g., `ui.example.com` and `api.example.com`), browsers treat them as same-site. Set `cookieOptions.domain: '.example.com'` and `cookieOptions.sameSite: 'lax'`.
@@ -438,7 +438,7 @@ const config: AuthConfig = {
     // refreshTokenPath: '/custom/refresh',   // only set if auto-derivation is wrong for you
   },
 
-  // CSRF protection (double-submit cookie pattern) — see "CSRF Protection" section
+  // CSRF protection (double-submit cookie pattern) — see “CSRF Protection” section
   csrf: {
     enabled: true,    // default: false
   },
@@ -446,7 +446,7 @@ const config: AuthConfig = {
   // bcrypt salt rounds (default: 12)
   bcryptSaltRounds: 12,
 
-  // Email — see "Mailer Configuration" section below
+  // Email — see “Mailer Configuration” section below
   email: {
     siteUrl: 'https://yourapp.com',
     mailer: {
@@ -454,8 +454,8 @@ const config: AuthConfig = {
       apiKey:   process.env.MAILER_API_KEY!,
       from:     'noreply@yourapp.com',
       fromName: 'My App',
-      provider: 'mailgun',                        // optional — forwarded to your mailer API
-      defaultLang: 'en',                          // 'en' or 'it'
+      provider: 'mailgun',                       // optional — forwarded to your mailer API
+      defaultLang: 'en',                         // 'en' or 'it'
     },
   },
 
@@ -487,7 +487,7 @@ const config: AuthConfig = {
     appName: 'My App',
   },
 
-  // Session Strategy (v1.5.0) — see "Session Management" section
+  // Session Strategy (v1.5.0) — see “Session Management” section
   sessionStrategy: {
     checkOn: 'refresh', // 'none' | 'refresh' | 'allcalls' (default: 'none')
   },
@@ -643,7 +643,7 @@ export interface ITemplateStore {
 ### Email Interpolation
 
 Custom templates support two types of placeholders:
-1. `{{T.key}}`: Translated strings from the template's own `translations` object.
+1. `{{T.key}}`: Translated strings from the template’s own `translations` object.
 2. `{{VAR}}`: Dynamic data provided by the library (e.g. `{{LINK}}`, `{{TOKEN}}`, `{{EMAIL}}`).
 
 ### UI Internationalization
@@ -660,7 +660,7 @@ To update translations from the Admin panel, ensure your `AuthConfigurator` has 
 
 OAuth strategies are abstract—extend them to implement your own user lookup logic.
 
-The profile object passed to `findOrCreateUser` now includes an `emailVerified` boolean (available from Google; derived from the primary-email entry for GitHub). Always store the provider's opaque user ID in `providerAccountId` and use `findByProviderAccount` for safe lookups — **do not** rely solely on email matching, which is vulnerable to account-takeover attacks.
+The profile object passed to `findOrCreateUser` now includes an `emailVerified` boolean (available from Google; derived from the primary-email entry for GitHub). Always store the provider’s opaque user ID in `providerAccountId` and use `findByProviderAccount` for safe lookups — **do not** rely solely on email matching, which is vulnerable to account-takeover attacks.
 
 ```typescript
 import { GoogleStrategy, BaseUser, AuthConfig, AuthError } from 'awesome-node-auth';
@@ -719,7 +719,7 @@ When `findOrCreateUser` throws an `AuthError` with code `'OAUTH_ACCOUNT_CONFLICT
 {siteUrl}/auth/account-conflict?provider=google&code=OAUTH_ACCOUNT_CONFLICT&email=user%40example.com
 ```
 
-When you also attach `{ email, providerAccountId }` to the thrown `AuthError`'s `data` field **and** provide a `pendingLinkStore` in `RouterOptions`, the library stashes the conflicting provider details automatically so the front-end can drive the full conflict-resolution flow without any custom server routes:
+When you also attach `{ email, providerAccountId }` to the thrown `AuthError`’s `data` field **and** provide a `pendingLinkStore` in `RouterOptions`, the library stashes the conflicting provider details automatically so the front-end can drive the full conflict-resolution flow without any custom server routes:
 
 ```typescript
 // Inside findOrCreateUser — throw with data payload
@@ -785,7 +785,7 @@ const res = await fetch('/auth/link-verify', {
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ token: tokenFromEmail, loginAfterLinking: true }),
 });
-// → tokens are set as cookies (or returned in body with X-Auth-Strategy: bearer)
+// → tokens are set as cookies (or returned in body for X-Auth-Strategy: bearer)
 // → pendingLinkStore.retrieve() fetched the real providerAccountId automatically
 ```
 
@@ -910,14 +910,6 @@ await fetch('/auth/link-verify', {
   body: JSON.stringify({ token: tokenFromLink }),
 });
 // → linkedAccountsStore.linkAccount() is called; account appears in GET /auth/linked-accounts
-
-// Optional: pass loginAfterLinking: true to receive a session immediately
-await fetch('/auth/link-verify', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ token: tokenFromLink, loginAfterLinking: true }),
-});
-// → tokens set as cookies (or in body for X-Auth-Strategy: bearer); user is now logged in
 ```
 
 **Required `IUserStore` methods** (add alongside your existing store):
@@ -940,7 +932,7 @@ async findByAccountLinkToken(token: string): Promise<User | null>
 - The user record has `require2FA: true`, **or**
 - The system-wide `require2FA` setting is `true` (requires `settingsStore` in `RouterOptions`).
 
-This lets users self-manage 2FA freely unless the administrator or the user's own profile mandates it.
+This lets users self-manage 2FA freely unless the administrator or the user’s own profile mandates it.
 
 ## Using Services Directly
 
@@ -1060,7 +1052,7 @@ interface BaseUser {
    */
   providerAccountId?: string | null;
   /**
-   * Timestamp of the user's last successful login.  Useful for purging inactive
+   * Timestamp of the user’s last successful login.  Useful for purging inactive
    * users or for auditing purposes.
    */
   lastLogin?: Date | null;
@@ -1273,7 +1265,7 @@ const authConfig: AuthConfig = {
 
 ### Including `auth.js`
 
-Include `auth.js` in your app's `<head>` to get a complete, zero-config browser auth client:
+Include `auth.js` in your app’s `<head>` to get a complete, zero-config browser auth client:
 
 ```html
 <script src="/auth/ui/auth.js"></script>
@@ -1357,7 +1349,7 @@ const loggedIn = await AwesomeNodeAuth.checkSession();
 await AwesomeNodeAuth.guardPage();
 await AwesomeNodeAuth.guardPage('/custom-login');  // custom redirect target
 
-// Redirect if user doesn't have the required role
+// Redirect if user doesn’t have the required role
 await AwesomeNodeAuth.guardRole('admin');
 await AwesomeNodeAuth.guardRole('editor', '/unauthorized');
 ```
@@ -1367,11 +1359,11 @@ await AwesomeNodeAuth.guardRole('editor', '/unauthorized');
 ```javascript
 // Login / register / logout
 const result = await AwesomeNodeAuth.login(email, password);
-// result.success           → boolean
-// result.requires2fa       → boolean (if TOTP/SMS required)
-// result.tempToken         → string  (2FA flow)
+// result.success            → boolean
+// result.requiresTwoFactor   → boolean (if TOTP/SMS required)
+// result.tempToken           → string  (2FA flow)
 // result.availableMethods  → string[] (available 2FA methods)
-// result.requires2FASetup  → boolean (if 2FA setup required)
+// result.requires2FASetup   → boolean (if 2FA setup required)
 
 await AwesomeNodeAuth.register(email, password, firstName?, lastName?);
 await AwesomeNodeAuth.logout();
@@ -1501,7 +1493,7 @@ ui: {
 
 ### File upload for logo and background image
 
-When `uploadDir` is configured in `AdminOptions`, the admin panel's **UI Customization** section gains file-upload inputs for the logo and background image. Files are stored in `uploadDir` and served by the UI router.
+When `uploadDir` is configured in `AdminOptions`, the admin panel’s **UI Customization** section gains file-upload inputs for the logo and background image. Files are stored in `uploadDir` and served by the UI router.
 
 You must also set `uploadBaseUrl` so the admin panel knows the **public URL prefix** at which those files are reachable by the browser. This value must match where `buildUiRouter` is mounted plus `/assets/uploads`:
 
@@ -1679,7 +1671,7 @@ The library supports the **double-submit cookie** pattern for CSRF defence, whic
 
 1. When CSRF is enabled, the library sets a non-`HttpOnly` cookie called `csrf-token` alongside the JWT cookies after every login/refresh.
 2. Client-side JavaScript must read this cookie and send its value in the `X-CSRF-Token` header on every authenticated request.
-3. `createAuthMiddleware` validates that the header value matches the cookie value. If they don't match, the request is rejected with **403 CSRF_INVALID**.
+3. `createAuthMiddleware` validates that the header value matches the cookie value. If they don’t match, the request is rejected with **403 CSRF_INVALID**.
 
 ### Enabling CSRF
 
@@ -1805,6 +1797,276 @@ See [examples/flutter-integration.example.dart](examples/flutter-integration.exa
 
 Deep-link setup notes for both Android (`AndroidManifest.xml`) and iOS (`Info.plist`) are included in the example file.
 
+
+---
+
+## Identity Provider (IdP) Mode *(v1.9)*
+
+IdP mode turns any `awesome-node-auth` Provisioner into a **central Identity Provider** that issues RS256-signed JWTs and exposes a standard JWKS endpoint. Downstream **Resource Servers** fetch the public key and validate tokens independently — no shared secrets required.
+
+```
+[Provisioner IdP]  ──RS256 JWT──►  [Client (Flutter / Angular / PWA)]
+       │                                          │
+       │ GET /.well-known/jwks.json               │ Bearer: {jwt}
+       ▼                                          ▼
+[JWKS Endpoint]                    [Resource Server A / B / N]
+                                          │
+                                          └─ validates via public key
+                                             (no secret sharing)
+```
+
+---
+
+### Generating the RSA keypair
+
+The private key must be stored as a single-line value in your `.env`. Use one of the two approaches below.
+
+#### Option A — Base64 (recommended)
+
+Base64 encodes the PEM into a single ASCII string with no special characters — ideal for `.env` files, Docker secrets, and CI/CD variables.
+
+```bash
+node -e "
+const { generateKeyPairSync } = require('crypto');
+const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+const pem = privateKey.export({ type: 'pkcs8', format: 'pem' });
+console.log('IDP_PRIVATE_KEY=' + Buffer.from(pem).toString('base64'));
+"
+```
+
+`.env`:
+```
+IDP_PRIVATE_KEY=LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0t...
+```
+
+Read it back in your config:
+```typescript
+privateKey: Buffer.from(process.env.IDP_PRIVATE_KEY!, 'base64').toString('utf8')
+```
+
+#### Option B — JSON-escaped string (via JwksService)
+
+If you prefer to use the built-in `JwksService.generateKeypair()` helper:
+
+```bash
+node -e "
+const { JwksService } = require('awesome-node-auth');
+const { privateKey } = JwksService.generateKeypair();
+console.log('IDP_PRIVATE_KEY=' + JSON.stringify(privateKey));
+"
+```
+
+`.env`:
+```
+IDP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvQ...
+```
+
+Read it back:
+```typescript
+privateKey: JSON.parse(process.env.IDP_PRIVATE_KEY!)
+```
+
+> **Production tip:** Store `IDP_PRIVATE_KEY` in your secrets manager (AWS Secrets Manager, HashiCorp Vault, GitHub Actions secrets, etc.) and inject it as an environment variable at runtime — never commit it to source control.
+
+---
+
+### Provisioner (IdP) setup
+
+```typescript
+import { AuthConfigurator } from 'awesome-node-auth';
+
+const auth = new AuthConfigurator({
+  accessTokenSecret:  process.env.ACCESS_TOKEN_SECRET!,
+  refreshTokenSecret: process.env.REFRESH_TOKEN_SECRET!,
+
+  idProvider: {
+    enabled: true,
+
+    // PEM-encoded RSA-2048 private key (base64-decoded from env — see above).
+    // When omitted an ephemeral keypair is auto-generated at startup (dev only).
+    privateKey: Buffer.from(process.env.IDP_PRIVATE_KEY!, 'base64').toString('utf8'),
+
+    // `iss` claim embedded in every JWT — Resource Servers validate this.
+    issuer: process.env.IDP_ISSUER ?? 'https://auth.myplatform.com',
+
+    // Access token TTL (default: '30d')
+    tokenExpiry: '30d',
+
+    // Refresh token TTL (default: '90d', falls back to refreshTokenExpiresIn).
+    // Both access and refresh tokens are RS256-signed to prevent HS256 downgrade attacks.
+    refreshTokenExpiry: '90d',
+
+    // JWKS endpoint path (default: '/.well-known/jwks.json')
+    jwksPath: '/.well-known/jwks.json',
+
+    // Restrict CORS to known downstream origins in production
+    jwksCorsOrigins: process.env.JWKS_CORS_ORIGINS?.split(',') ?? '*',
+  },
+}, userStore);
+
+app.use('/auth', auth.router());
+```
+
+#### `IdProviderConfig` reference
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | `boolean` | `false` | Enable IdP mode |
+| `privateKey` | `string` | — | PEM-encoded RSA-2048 private key. Auto-generated if omitted (dev only) |
+| `publicKey` | `string` | — | PEM public key. Auto-derived from `privateKey` if omitted |
+| `issuer` | `string` | — | `iss` claim in every JWT. Omit to suppress the claim |
+| `tokenExpiry` | `string` | `'30d'` | Access token TTL |
+| `refreshTokenExpiry` | `string` | `'90d'` | Refresh token TTL |
+| `jwksPath` | `string` | `'/.well-known/jwks.json'` | JWKS endpoint path |
+| `jwksCorsOrigins` | `string \| string[]` | `'*'` | CORS origins allowed to fetch the JWKS endpoint |
+
+---
+
+### Token structure in IdP mode
+
+Both the access token and the refresh token are **RS256-signed**. The JOSE header carries the `kid` parameter (Key ID, per RFC 7515 §4.1.4 — a header parameter, not a payload claim):
+
+```json
+{ "alg": "RS256", "kid": "provisioner-key-1" }
+```
+
+The access token payload includes:
+```typescript
+{
+  sub:  string,   // user ID
+  email: string,
+  iss:  string,   // issuer (when idProvider.issuer is set)
+  iat:  number,
+  exp:  number,
+  // ...any custom claims from buildTokenPayload
+}
+```
+
+> Both tokens being RS256-signed prevents a downgrade attack where an HS256-signed refresh token could obtain an RS256-signed access token, bypassing issuer validation.
+
+---
+
+### JWKS endpoint
+
+Automatically registered at `idProvider.jwksPath`:
+
+```bash
+curl https://auth.myplatform.com/.well-known/jwks.json
+# → { "keys": [{ "kty": "RSA", "alg": "RS256", "kid": "...", "n": "...", "e": "AQAB" }] }
+```
+
+---
+
+### Resource Server setup
+
+```typescript
+import express from 'express';
+import { createJwksAuthMiddleware } from 'awesome-node-auth';
+
+const app = express();
+
+const verifyToken = createJwksAuthMiddleware({
+  // URL of the Provisioner's JWKS endpoint
+  jwksUrl: process.env.JWKS_URL ?? 'https://auth.myplatform.com/.well-known/jwks.json',
+
+  // Must match idProvider.issuer on the Provisioner
+  issuer:  process.env.IDP_ISSUER ?? 'https://auth.myplatform.com',
+
+  // Optional: cache TTL in ms (default: 3_600_000 = 1 hour)
+  jwksCacheTtl: 3_600_000,
+
+  // Optional: fetch timeout in ms (default: 5000)
+  jwksFetchTimeout: 5000,
+});
+
+// Protect your API — Bearer RS256 only
+app.use('/api', verifyToken, myApiRouter);
+```
+
+HTTP responses from `createJwksAuthMiddleware`:
+
+| Status | Condition |
+|---|---|
+| `403` | No token provided |
+| `401` | Token invalid, expired, or wrong issuer |
+| `401` | Unknown `kid` — cache invalidated, one retry attempted (key rotation) |
+
+#### Cookie fallback for SSR dashboard pages
+
+When the Resource Server also serves SSR pages that use cookie-based auth, pass `accessTokenSecret` to enable an HS256 cookie fallback:
+
+```typescript
+const verifyToken = createJwksAuthMiddleware({
+  jwksUrl: '...',
+  issuer:  '...',
+  // HS256 cookie fallback for SSR pages
+  accessTokenSecret: process.env.ACCESS_TOKEN_SECRET,
+});
+```
+
+#### `ResourceServerConfig` reference
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | `boolean` | `false` | Enable Resource Server mode (skips login/register/refresh routes) |
+| `jwksUrl` | `string` | — | URL of the Provisioner's JWKS endpoint |
+| `issuer` | `string` | — | Expected `iss` claim |
+| `jwksCacheTtl` | `number` | `3_600_000` | JWKS cache TTL in ms |
+| `jwksFetchTimeout` | `number` | `5000` | JWKS fetch timeout in ms |
+
+---
+
+### `JwksService` public API
+
+```typescript
+import { JwksService, JwksClient } from 'awesome-node-auth';
+
+// Generate a new RSA-2048 keypair
+const { privateKey, publicKey } = JwksService.generateKeypair();
+
+// Derive the public key PEM from a private key PEM
+const pubPem = JwksService.derivePublicKey(privateKey);
+
+// Convert a PEM public key to JWK format (RFC 7517)
+const jwk = JwksService.publicKeyToJwk(pubPem, 'my-key-id');
+
+// Build a full { keys: [...] } JWKS document
+const doc = JwksService.buildJwksDocument(pubPem, 'my-key-id');
+
+// Convert a JWK back to PEM for local verification
+const pem = JwksService.jwkToPublicKey(jwk);
+
+// Create a cached JWKS client
+const client = JwksService.createRemoteClient('https://auth.example.com/.well-known/jwks.json', {
+  cacheTtl: 3_600_000,
+  fetchTimeout: 5000,
+});
+const keyPem = await client.getKey('my-key-id');
+```
+
+---
+
+### Key rotation
+
+1. Generate a new keypair: `JwksService.generateKeypair()`
+2. Update `IDP_PRIVATE_KEY` in your secrets manager
+3. Serve both the old and new public keys in the JWKS document during the overlap window (until all tokens signed with the old key have expired)
+4. Remove the old key from the JWKS document
+
+`JwksClient` automatically invalidates its cache and retries once when it encounters an unknown `kid`, so downstream services handle rotation transparently.
+
+---
+
+### Production checklist
+
+- ✅ Inject `IDP_PRIVATE_KEY` via secrets manager — never commit it to source control
+- ✅ Always set `idProvider.issuer` and validate it on every Resource Server
+- ✅ Use HTTPS in production
+- ✅ Set `jwksCorsOrigins` to specific downstream origins, not `'*'`
+- ✅ Keep access token TTL short (`tokenExpiry: '15m'`) for sensitive APIs
+- ✅ Rotate keys periodically and overlap old/new keys during rollover
+
+
 ## Error Handling
 
 The library throws `AuthError` for authentication failures:
@@ -1824,7 +2086,7 @@ try {
 }
 ```
 
-The optional `data` field carries additional context. For example, when `findOrCreateUser` throws `OAUTH_ACCOUNT_CONFLICT`, you can attach the conflicting account's details so the router can stash them via `IPendingLinkStore`:
+The optional `data` field carries additional context. For example, when `findOrCreateUser` throws `OAUTH_ACCOUNT_CONFLICT`, you can attach the conflicting account’s details so the router can stash them via `IPendingLinkStore`:
 
 ```typescript
 throw new AuthError(
@@ -1892,7 +2154,7 @@ await userStore.create({
 ```
 
 > **Backward compatibility:** `requireEmailVerification: true` still works and is equivalent to `emailVerificationMode: 'strict'`.
-> The admin ⚙️ Control panel also exposes `emailVerificationMode` so you can change the global policy at runtime without redeploying.
+> The admin ☠️ Control panel also exposes `emailVerificationMode` so you can change the global policy at runtime without redeploying.
 
 ### IUserStore additions
 
@@ -2211,7 +2473,7 @@ After a successful `POST /auth/login` that returns `requiresTwoFactor: true`, th
 The 2FA challenge is triggered when the user has `isTotpEnabled = true` **or** `require2FA = true`. The `require2FA` flag does **not** require an authenticator app — magic-link is a valid second factor on its own.
 
 | Value | When it appears |
-|-------|----------------|
+|-------|-----------------|
 | `'totp'` | User has `isTotpEnabled = true` and a stored `totpSecret` |
 | `'sms'` | User has a stored `phoneNumber` **and** `config.sms` is configured |
 | `'magic-link'` | `config.email.sendMagicLink` or `config.email.mailer` is configured |
@@ -2348,15 +2610,15 @@ const UPLOAD_DIR = path.join(__dirname, 'uploads');
 app.use('/admin', createAdminRouter(userStore, {
   accessPolicy: 'first-user',
   jwtSecret: process.env.ACCESS_TOKEN_SECRET!,
-  sessionStore,         // optional — enables Sessions tab
-  rbacStore,            // optional — enables Roles & Permissions tab + user-role assignment
-  tenantStore,          // optional — enables Tenants tab + user-tenant membership
-  userMetadataStore,    // optional — enables Metadata editor in the user panel
-  settingsStore,        // optional — enables ⚙️ Control tab (global toggles + 🎨 UI Customization)
-  linkedAccountsStore,  // optional — shows Linked Accounts column + detail section in Users tab
-  apiKeyStore,          // optional — enables 🔑 API Keys tab (list, revoke, delete, create)
-  webhookStore,         // optional — enables 🔗 Webhooks tab (list, create, toggle, delete)
-  templateStore,        // optional — enables 📧 Email & UI tab (v1.6.0)
+  sessionStore,        // optional — enables Sessions tab
+  rbacStore,           // optional — enables Roles & Permissions tab + user-role assignment
+  tenantStore,         // optional — enables Tenants tab + user-tenant membership
+  userMetadataStore,   // optional — enables Metadata editor in the user panel
+  settingsStore,       // optional — enables ☠️ Control tab (global toggles + 🎨 UI Customization)
+  linkedAccountsStore, // optional — shows Linked Accounts column + detail section in Users tab
+  apiKeyStore,         // optional — enables 🔑 API Keys tab (list, revoke, delete, create)
+  webhookStore,        // optional — enables 📗 Webhooks tab (list, create, toggle, delete)
+  templateStore,       // optional — enables 📧 Email & UI tab (v1.6.0)
   uploadDir: UPLOAD_DIR,           // optional — enables file-upload for logo and background image
   uploadBaseUrl: '/auth/ui/assets/uploads',  // must match <uiMount> + '/assets/uploads'
 }));
@@ -2365,15 +2627,15 @@ app.use('/admin', createAdminRouter(userStore, {
 Open `http://localhost:3000/admin/` in your browser, enter the admin secret, and you get a tabbed dashboard:
 
 | Tab | Requires | Features |
-|-----|----------|---------|
+|-----|---------|----------|
 | **👤 Users** | `IUserStore.listUsers` | Paginated user table, server-side `?filter=`, per-row checkboxes, batch-delete, **Linked Accounts** preview column, **Manage** panel per user |
 | **📋 Sessions** | `ISessionStore.getAllSessions` | All active sessions, server-side `?filter=`, revoke by handle |
-| **🛡️ Roles & Permissions** | `IRolesPermissionsStore.getAllRoles` | List roles with permissions, client-side filter, create/delete roles |
-| **🏢 Tenants** | `ITenantStore.getAllTenants` | List tenants, client-side filter, create/delete tenants, manage members |
+| **🗡️ Roles & Permissions** | `IRolesPermissionsStore.getAllRoles` | List roles with permissions, client-side filter, create/delete roles |
+| **🞢 Tenants** | `ITenantStore.getAllTenants` | List tenants, client-side filter, create/delete tenants, manage members |
 | **🔑 API Keys** | `apiKeyStore` (see below) | List all API keys, revoke (soft), delete (hard), create new key (rawKey shown once) |
-| **🔗 Webhooks** | `webhookStore` (see below) | List all outgoing webhook registrations, register new, toggle active/inactive, delete |
+| **📗 Webhooks** | `webhookStore` (see below) | List all outgoing webhook registrations, register new, toggle active/inactive, delete |
 | **📧 Email & UI** | `templateStore` (see below) | Manage custom email templates (HTML/Text) and UI internationalization (v1.6.0) |
-| **⚙️ Control** | `settingsStore` (see below) | Toggle **Mandatory Email Verification** and **Mandatory 2FA** globally; **🎨 UI Customization** panel (colors, logo, background, site name, file upload when `uploadDir` is set) |
+| **☠️ Control** | `settingsStore` (see below) | Toggle **Mandatory Email Verification** and **Mandatory 2FA** globally; **🎨 UI Customization** panel (colors, logo, background, site name, file upload when `uploadDir` is set) |
 
 The **Manage** panel (click the "Manage" button in the Users table) provides:
 - **Role assignment** — assign/remove roles when `rbacStore` is configured
@@ -2403,7 +2665,7 @@ app.use('/admin', createAdminRouter(userStore, {
 
 ### Webhooks tab — `webhookStore`
 
-Pass an `IWebhookStore` implementation with the optional admin CRUD methods to enable the **🔗 Webhooks** tab:
+Pass an `IWebhookStore` implementation with the optional admin CRUD methods to enable the **📗 Webhooks** tab:
 
 ```typescript
 app.use('/admin', createAdminRouter(userStore, {
@@ -2441,7 +2703,7 @@ All changes are persisted to the provided store via the Admin REST API.
 
 ### Control tab — `settingsStore`
 
-Supply an object with two async methods to enable the **⚙️ Control** tab:
+Supply an object with two async methods to enable the **☠️ Control** tab:
 
 ```typescript
 const settings: Record<string, unknown> = {};
@@ -2676,7 +2938,7 @@ console.log(meta.theme); // 'dark'
 import { IRolesPermissionsStore } from 'awesome-node-auth';
 
 export class MyRbacStore implements IRolesPermissionsStore {
-  // User ↔ Role
+  // User → Role
   async addRoleToUser(userId: string, role: string, tenantId?: string): Promise<void> { /* ... */ }
   async removeRoleFromUser(userId: string, role: string, tenantId?: string): Promise<void> { /* ... */ }
   async getRolesForUser(userId: string, tenantId?: string): Promise<string[]> { /* ... */ }
@@ -2685,7 +2947,7 @@ export class MyRbacStore implements IRolesPermissionsStore {
   async createRole(role: string, permissions?: string[]): Promise<void> { /* ... */ }
   async deleteRole(role: string): Promise<void> { /* ... */ }
 
-  // Role ↔ Permission
+  // Role → Permission
   async addPermissionToRole(role: string, permission: string): Promise<void> { /* ... */ }
   async removePermissionFromRole(role: string, permission: string): Promise<void> { /* ... */ }
   async getPermissionsForRole(role: string): Promise<string[]> { /* ... */ }
@@ -2803,7 +3065,7 @@ export class MyTenantStore implements ITenantStore {
   async updateTenant(id: string, data: Partial<Omit<Tenant, 'id'>>): Promise<void> { /* ... */ }
   async deleteTenant(id: string): Promise<void> { /* ... */ }
 
-  // User ↔ Tenant membership
+  // User → Tenant membership
   async associateUserWithTenant(userId: string, tenantId: string): Promise<void> { /* ... */ }
   async disassociateUserFromTenant(userId: string, tenantId: string): Promise<void> { /* ... */ }
   async getTenantsForUser(userId: string): Promise<Tenant[]> { /* ... */ }
@@ -2842,9 +3104,9 @@ app.get('/tenants/:id/data', auth.middleware(), async (req, res) => {
 
 ```typescript
 interface Tenant {
-  id:        string;                      // Unique identifier (slug, UUID, etc.)
+  id:        string;                        // Unique identifier (slug, UUID, etc.)
   name:      string;
-  isActive?: boolean;                     // Defaults to true
+  isActive?: boolean;                       // Defaults to true
   config?:   Record<string, unknown>;    // Per-tenant settings (branding, feature flags, etc.)
   createdAt?: Date;
 }
@@ -2854,15 +3116,15 @@ interface Tenant {
 
 The library includes an optional event-driven layer that turns awesome-node-auth into an
 **identity platform**. All features are **zero-overhead when disabled** — simply
-don't instantiate `AuthTools` and nothing runs.
+don’t instantiate `AuthTools` and nothing runs.
 
 ### Architecture overview
 
 ```
 Auth Core
-   ↓
+   ⇣
 AuthEventBus  ← backbone (EventEmitter)
-   ↓
+   ⇣
 AuthTools
    ├── ITelemetryStore   ← persist events to any DB
    ├── SseManager        ← real-time browser/client notifications
@@ -3010,13 +3272,13 @@ es.addEventListener('identity.auth.login.success', (e) => {
 **Topic hierarchy** (server-controlled, clients cannot self-declare):
 
 ```
-global                              – all authenticated users
-tenant:{tenantId}                   – all users of a tenant
+global                             – all authenticated users
+tenant:{tenantId}                  – all users of a tenant
 tenant:{tenantId}:role:{role}       – users with a specific role
 tenant:{tenantId}:group:{groupId}   – users in a group
-user:{userId}                       – single user
-session:{sessionId}                 – single session
-custom:{namespace}                  – any custom topic
+user:{userId}                      – single user
+session:{sessionId}                – single session
+custom:{namespace}                 – any custom topic
 ```
 
 **Notify a topic programmatically:**
@@ -3032,7 +3294,7 @@ tools.notify('user:123', { message: 'Your password was changed.' }, {
 **HTTP API:**
 
 ```
-GET  /tools/stream               – SSE stream (Accept: text/event-stream)
+GET  /tools/stream              – SSE stream (Accept: text/event-stream)
 POST /tools/notify/:target       – send notification to a topic
 ```
 
@@ -3156,7 +3418,7 @@ class SubscriptionService {
 // Bind the instance so the vm sandbox can call it
 const svc = new SubscriptionService();
 ActionRegistry.register({ id: 'subscription.cancel',     label: 'Cancel subscription', category: 'Billing', description: '', fn: svc.cancel.bind(svc) });
-ActionRegistry.register({ id: 'subscription.notifyUser', label: 'Notify user',          category: 'Billing', description: '', dependsOn: ['subscription.cancel'], fn: svc.notifyUser.bind(svc) });
+ActionRegistry.register({ id: 'subscription.notifyUser', label: 'Notify user',         category: 'Billing', description: '', dependsOn: ['subscription.cancel'], fn: svc.notifyUser.bind(svc) });
 ```
 
 **Step 2 — wire stores into the tools router:**
@@ -3186,7 +3448,7 @@ if (body.type === 'customer.subscription.deleted') {
 | Rule | Behaviour |
 |------|-----------|
 | Action not in `enabledWebhookActions` | Excluded from sandbox |
-| Action's `dependsOn` not enabled | Excluded from sandbox |
+| Action’s `dependsOn` not enabled | Excluded from sandbox |
 | Script throws / timeout (5 s) | Logged, HTTP 200 returned |
 | `result` is null | Silently acknowledged |
 
@@ -3271,7 +3533,7 @@ app.use('/tools', createToolsRouter(tools, {
 #### Available endpoints
 
 | Router | Swagger UI | OpenAPI spec |
-|--------|-----------|-------------|
+|--------|------------|-------------|
 | Auth (`/auth`) | `GET /auth/docs` | `GET /auth/openapi.json` |
 | Admin (`/admin`) | `GET /admin/api/docs` | `GET /admin/api/openapi.json` |
 | Tools (`/tools`) | `GET /tools/docs` | `GET /tools/openapi.json` |
@@ -3320,9 +3582,9 @@ An API key does **not** represent a human user identity; it represents a **servi
 
 ```
 Incoming request (Authorization: ApiKey <key> or X-Api-Key: <key>)
-       ↓
+       ⇣
 createApiKeyMiddleware(store, options)
-       ↓
+       ⇣
 ApiKeyStrategy
   ├── extract prefix → store.findByPrefix()
   ├── bcrypt verify  (always runs — timing-attack mitigation)
@@ -3331,7 +3593,7 @@ ApiKeyStrategy
   ├── IP allowlist check (CIDR or exact match, optional)
   ├── scope check (optional)
   └── store.updateLastUsed() + store.logUsage() (optional audit log)
-       ↓
+       ⇣
 req.apiKey = { keyId, keyPrefix, name, serviceId, scopes }
 ```
 
@@ -3397,7 +3659,7 @@ const { rawKey, record } = await service.createKey(myApiKeyStore, {
   expiresAt: new Date('2027-01-01'), // optional: expiry date
 });
 
-// ⚠️  Show `rawKey` to the caller exactly once — it cannot be recovered later.
+// ☢️  Show `rawKey` to the caller exactly once — it cannot be recovered later.
 console.log('Your API key:', rawKey);
 // record.keyHash is stored in the DB; rawKey is not.
 ```
@@ -3470,8 +3732,8 @@ await store.revoke(oldKeyId);
 | 401 | `API_KEY_MISSING` | No `Authorization: ApiKey` or `X-Api-Key` header |
 | 401 | `API_KEY_INVALID` | Key not found or hash mismatch |
 | 401 | `API_KEY_REVOKED` | Key exists but `isActive = false` |
-| 401 | `API_KEY_EXPIRED` | Key's `expiresAt` is in the past |
-| 403 | `API_KEY_IP_BLOCKED` | Client IP not in the key's `allowedIps` list |
+| 401 | `API_KEY_EXPIRED` | Key’s `expiresAt` is in the past |
+| 403 | `API_KEY_IP_BLOCKED` | Client IP not in the key’s `allowedIps` list |
 | 403 | `API_KEY_INSUFFICIENT_SCOPE` | Key does not have all `requiredScopes` |
 
 ### Multi-tenant isolation
@@ -3498,24 +3760,24 @@ npm run test:coverage
 
 ```
 src/
-├── interfaces/          # IUserStore, ITokenStore, IAuthStrategy,
-│                        # IUserMetadataStore, IRolesPermissionsStore,
-│                        # ISessionStore, ITenantStore,
-│                        # ITelemetryStore, IWebhookStore, IApiKeyStore
-├── models/              # BaseUser, TokenPair, AuthConfig, AuthError,
-│                        # SessionInfo, Tenant, ApiKey
-├── abstract/            # BaseAuthStrategy, BaseOAuthStrategy
-├── strategies/          # Local, Google, GitHub, MagicLink, SMS, TOTP, ApiKey
-├── services/            # TokenService, PasswordService, SmsService, MailerService,
-│                        # ApiKeyService
-├── middleware/          # createAuthMiddleware(), createApiKeyMiddleware()
-├── events/              # AuthEventBus, AuthEventNames
-├── tools/               # AuthTools, SseManager, WebhookSender
-├── router/              # createAuthRouter() – auth endpoints
-│                        # createAdminRouter() – admin panel UI + REST API
-│                        # createToolsRouter() – event-driven tools endpoints
-│                        # openapi.ts – buildAuthOpenApiSpec, buildAdminOpenApiSpec,
-│                        #              buildOpenApiSpec, buildSwaggerUiHtml
+├── interfaces/         # IUserStore, ITokenStore, IAuthStrategy,
+│                    # IUserMetadataStore, IRolesPermissionsStore,
+│                    # ISessionStore, ITenantStore,
+│                    # ITelemetryStore, IWebhookStore, IApiKeyStore
+├── models/            # BaseUser, TokenPair, AuthConfig, AuthError,
+│                    # SessionInfo, Tenant, ApiKey
+├── abstract/          # BaseAuthStrategy, BaseOAuthStrategy
+├── strategies/        # Local, Google, GitHub, MagicLink, SMS, TOTP, ApiKey
+├── services/          # TokenService, PasswordService, SmsService, MailerService,
+│                    # ApiKeyService
+├── middleware/        # createAuthMiddleware(), createApiKeyMiddleware()
+├── events/            # AuthEventBus, AuthEventNames
+├── tools/             # AuthTools, SseManager, WebhookSender
+├── router/            # createAuthRouter() – auth endpoints
+│                    # createAdminRouter() – admin panel UI + REST API
+│                    # createToolsRouter() – event-driven tools endpoints
+│                    # openapi.ts – buildAuthOpenApiSpec, buildAdminOpenApiSpec,
+│                    #                  buildOpenApiSpec, buildSwaggerUiHtml
 └── auth-configurator.ts # Main entry point
 ```
 
@@ -3524,7 +3786,7 @@ src/
 The table below maps SuperTokens recipes to awesome-node-auth equivalents so you can evaluate feature coverage for your project.
 
 | SuperTokens Feature | awesome-node-auth equivalent | Notes |
-|---------------------|---------------------|-------|
+|--------------------|------------------|---------|
 | EmailPassword recipe | `LocalStrategy` + `POST /auth/login` | Full email/password auth with bcrypt |
 | ThirdParty / OAuth | `GoogleStrategy`, `GithubStrategy`, `GenericOAuthStrategy` | Extend abstract strategies for any provider |
 | Passwordless (magic link) | `MagicLinkStrategy` | Email token via built-in mailer or callback; first login counts as email verification |
@@ -3585,7 +3847,7 @@ SPONSORSHIP_WEBHOOK_PATH=/webhooks/github/notify_sponsorship
 
 ### GitHub Webhook setup
 
-1. Go to **GitHub → Your profile → Sponsorships → Settings → Webhooks** (or your organization's sponsorship settings).
+1. Go to **GitHub → Your profile → Sponsorships → Settings → Webhooks** (or your organization’s sponsorship settings).
 2. Add a new webhook:
    - **Payload URL:** `https://<your-mcp-server-domain>/webhooks/github/notify_sponsorship`
    - **Content type:** `application/json`

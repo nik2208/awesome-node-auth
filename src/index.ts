@@ -53,9 +53,14 @@ export type { EmailNotificationConfig, SmsNotificationConfig, SendEmailOptions, 
 export type { MailerConfig } from './models/auth-config.model';
 export { ApiKeyService } from './services/api-key.service';
 export type { CreateApiKeyOptions, CreatedApiKey } from './services/api-key.service';
+export { JwksService } from './services/jwks.service';
+export type { JWK, JwksDocument, JwksClientOptions } from './services/jwks.service';
+export { JwksClient } from './services/jwks.service';
+export type { IdProviderConfig, ResourceServerConfig } from './models/auth-config.model';
 
 export { createAuthMiddleware } from './middleware/auth.middleware';
 export { createApiKeyMiddleware } from './middleware/api-key.middleware';
+export { createJwksAuthMiddleware } from './middleware/jwks-auth.middleware';
 export { createAuthRouter, buildUiLink } from './router/auth.router';
 export type { RouterOptions } from './router/auth.router';
 export { createAdminRouter } from './router/admin.router';

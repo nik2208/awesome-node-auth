@@ -4,6 +4,14 @@ import { Request, Response } from 'express';
 import { AccessTokenPayload, TokenPair } from '../models/token.model';
 import { AuthConfig } from '../models/auth-config.model';
 import { AuthError } from '../models/errors';
+import { JwksClient, JwksService } from './jwks.service';
+
+let ephemeralWarningEmitted = false;
+
+/** Reset ephemeral-warning flag. Exported for testing only. */
+export function _resetEphemeralWarning(): void {
+  ephemeralWarningEmitted = false;
+}
 
 export class TokenService {
   generateTokenPair(payload: AccessTokenPayload, config: AuthConfig): TokenPair {
@@ -20,6 +28,116 @@ export class TokenService {
       { expiresIn: config.refreshTokenExpiresIn ?? '7d' } as jwt.SignOptions
     );
     return { accessToken, refreshToken };
+  }
+
+  /**
+   * Generate an RS256-signed token pair for IdP mode.
+   *
+   * IdP mode activates when `config.idProvider.privateKey` is present **or**
+   * `config.idProvider.enabled === true`. A keypair is auto-generated at the
+   * first call if no `privateKey` is configured (for dev; emits a warning).
+   */
+  generateIdProviderTokenPair(payload: AccessTokenPayload, config: AuthConfig): TokenPair {
+    const idp = config.idProvider;
+    const isActive = !!idp?.privateKey || idp?.enabled === true;
+    if (!isActive) {
+      throw new AuthError('IdP mode is not enabled', 'IDP_NOT_ENABLED', 500);
+    }
+
+    let privateKeyPem = idp!.privateKey;
+    let publicKeyPem = idp!.publicKey;
+
+    if (!privateKeyPem) {
+      if (!ephemeralWarningEmitted) {
+        console.warn(
+          '[awesome-node-auth] IdP mode: no privateKey configured — ' +
+          'auto-generating an ephemeral RSA keypair. ' +
+          'All tokens will be invalidated on restart. ' +
+          'Set idProvider.privateKey in production.'
+        );
+        ephemeralWarningEmitted = true;
+      }
+      // Auto-generate ephemeral keypair (dev only)
+      const kp = JwksService.generateKeypair();
+      privateKeyPem = kp.privateKey;
+      publicKeyPem = kp.publicKey;
+      // Persist into the config object so subsequent calls reuse the same keypair
+      idp!.privateKey = privateKeyPem;
+      idp!.publicKey = publicKeyPem;
+    } else if (!publicKeyPem) {
+      publicKeyPem = JwksService.derivePublicKey(privateKeyPem);
+      idp!.publicKey = publicKeyPem;
+    }
+
+    // `iat`, `exp` and `kid` are managed by jsonwebtoken (header claim, not payload)
+    const { iat, exp, kid: _kid, ...claims } = payload;
+    const idpClaims = {
+      ...claims,
+      ...(idp!.issuer ? { iss: idp!.issuer } : {}),
+    };
+    const keyId = 'provisioner-key-1';
+
+    const expiresIn = (idp.tokenExpiry ?? '30d') as jwt.SignOptions['expiresIn'];
+    const accessToken = jwt.sign(idpClaims, privateKeyPem, {
+      algorithm: 'RS256',
+      expiresIn,
+      keyid: keyId,
+    } as jwt.SignOptions);
+
+    // Refresh token also RS256-signed, with a longer expiry.
+    // Priority: idProvider.refreshTokenExpiry → config.refreshTokenExpiresIn → '90d'
+    const refreshToken = jwt.sign(idpClaims, privateKeyPem, {
+      algorithm: 'RS256',
+      expiresIn: (idp.refreshTokenExpiry ?? config.refreshTokenExpiresIn ?? '90d') as jwt.SignOptions['expiresIn'],
+      keyid: keyId,
+    } as jwt.SignOptions);
+
+    return { accessToken, refreshToken };
+  }
+
+  /**
+   * Verify a JWT against a remote JWKS endpoint.
+   * The `kid` header claim is used to select the correct public key.
+   */
+  async verifyWithJwks(token: string, jwksClient: JwksClient, expectedIssuer?: string): Promise<AccessTokenPayload> {
+    try {
+      // Decode without verifying to extract `kid`
+      const decoded = jwt.decode(token, { complete: true });
+      if (!decoded || typeof decoded === 'string') {
+        throw new AuthError('Invalid token format', 'INVALID_TOKEN', 401);
+      }
+
+      const kid = (decoded.header as { kid?: string }).kid;
+      if (!kid) {
+        throw new AuthError('Token missing kid header', 'INVALID_TOKEN', 401);
+      }
+
+      const jwk = await jwksClient.getKey(kid);
+      if (!jwk) {
+        // Key not found — try once more after cache invalidation (supports key rotation)
+        jwksClient.invalidateCache();
+        const retried = await jwksClient.getKey(kid);
+        if (!retried) {
+          throw new AuthError('Unknown signing key', 'INVALID_TOKEN', 401);
+        }
+        const publicKey = JwksService.jwkToPublicKey(retried);
+        return this._verifyRsaToken(token, publicKey, expectedIssuer);
+      }
+
+      const publicKey = JwksService.jwkToPublicKey(jwk);
+      return this._verifyRsaToken(token, publicKey, expectedIssuer);
+    } catch (err) {
+      if (err instanceof AuthError) throw err;
+      throw new AuthError('Invalid or expired token', 'INVALID_TOKEN', 401);
+    }
+  }
+
+  private _verifyRsaToken(token: string, publicKeyPem: string, expectedIssuer?: string): AccessTokenPayload {
+    const payload = jwt.verify(token, publicKeyPem, { algorithms: ['RS256'] }) as AccessTokenPayload;
+    if (expectedIssuer && payload.iss !== expectedIssuer) {
+      throw new AuthError('Token issuer mismatch', 'INVALID_TOKEN', 401);
+    }
+    return payload;
   }
 
   verifyAccessToken(token: string, config: AuthConfig): AccessTokenPayload {

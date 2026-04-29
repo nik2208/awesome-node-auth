@@ -215,8 +215,14 @@ export function buildUiRouter(options: UiRouterOptions): Router {
             // Handle custom CSS and Site Name
             if (config.ui?.customCss) styleTags += `<style>${config.ui.customCss}</style>`;
             if (config.ui?.siteName) {
-                htmlContent = htmlContent.replace(/<title>.*?<\/title>/, `<title>${config.ui.siteName}</title>`);
-                htmlContent = htmlContent.replace(/<h1 class="site-name">.*?<\/h1>/, `<h1 class="site-name">${config.ui.siteName}</h1>`);
+                const safeSiteName = config.ui.siteName
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+                htmlContent = htmlContent.replace(/<title>.*?<\/title>/s, `<title>${safeSiteName}</title>`);
+                htmlContent = htmlContent.replace(/(<h1[^>]*class="site-name"[^>]*>).*?(<\/h1>)/s, `$1${safeSiteName}$2`);
             }
             if (config.ui?.logoUrl) {
                 htmlContent = htmlContent.replace(/<img src=".*?" alt="Logo" class="logo hidden">/, `<img src="${config.ui.logoUrl}" alt="Logo" class="logo">`);

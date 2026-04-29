@@ -1,6 +1,6 @@
 {
   "name": "node-auth-express-angular-spa",
-  "version": "1.0.0",
+  "version": "1.9.0",
   "description": "Express + Angular SPA demo for awesome-node-auth — separate API server (port 3000) + Angular dev server (port 4200) with proxy.",
   "scripts": {
     "start": "concurrently \"node server.js\" \"ng serve --proxy-config proxy.conf.json --open\"",
@@ -18,7 +18,7 @@
     "@angular/platform-browser": "^19.2.21",
     "@angular/platform-browser-dynamic": "^19.2.21",
     "@angular/router": "^19.2.21",
-    "awesome-node-auth": "^1.8.4",
+    "awesome-node-auth": "^1.9.0",
     "cookie-parser": "^1.4.7",
     "express": "^4.21.2",
     "rxjs": "^7.8.2",

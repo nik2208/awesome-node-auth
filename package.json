@@ -1,12 +1,14 @@
 {
   "name": "awesome-node-auth",
-  "version": "1.8.4",
+  "version": "1.9.0",
   "description": "Database-agnostic JWT authentication and communication bus for Node.js",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc && mkdir -p dist/ui-assets && cp -r src/ui/assets/* dist/ui-assets",
+    "extract-i18n": "node scripts/extract-i18n-keys.js",
+    "build": "npm run extract-i18n && tsc && mkdir -p dist/ui-assets && cp -r src/ui/assets/* dist/ui-assets",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "sync:public": "bash scripts/sync-to-public.sh"
   },
   "repository": {
     "type": "git",

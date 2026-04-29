@@ -59,6 +59,7 @@ Full DB examples (MongoDB, PostgreSQL, MySQL, in-memory) → [README.detailed.md
 |---|---|
 | **Auth strategies** | Email/password · OAuth 2.0 (Google, GitHub, custom) · Magic links · SMS OTP · TOTP 2FA |
 | **Token management** | HttpOnly-cookie or Bearer mode · automatic access/refresh rotation · `__Host-`/`__Secure-` cookie prefixes |
+| **Identity Provider (IdP) mode** *(v1.9)* | RS256-signed JWTs · public JWKS endpoint (`/.well-known/jwks.json`) · Resource Server middleware · zero new dependencies |
 | **Stateful sessions** *(v1.5)* | `ISessionStore` + real-time revocation (`checkOn: allcalls\|refresh\|none`) · L1/L2 caching decorators |
 | **Dynamic email templates** *(v1.6)* | `ITemplateStore` — per-language mail templates + UI i18n with safe hardcoded fallback · built-in `MemoryTemplateStore` |
 | **CSRF protection** | Double-submit cookie pattern · `__Host-` prefix hardening against cookie-tossing |
@@ -68,11 +69,55 @@ Full DB examples (MongoDB, PostgreSQL, MySQL, in-memory) → [README.detailed.md
 | **Multi-tenancy** | `ITenantStore` for isolated tenant apps |
 | **Admin panel** | Full-featured admin UI: user management, sessions, roles, tenants, metadata, API keys, webhooks |
 | **Built-in UI** | Zero-dependency HTML/CSS/JS login UI served at `<apiPrefix>/ui/` · **headless mode** for SPAs |
-| **Angular library** | `ng-awesome-node-auth` — interceptor with refresh queue, SESSION_REVOKED loop protection, `getActiveSessions()` |
+| **Client libraries** | `ng-awesome-node-auth` (Angular) · `awesome-node-auth-flutter` (Flutter/Dart) |
 | **Event-driven** | `AuthEventBus` · SSE push · inbound/outbound webhooks · telemetry |
 | **API keys** | M2M bcrypt-hashed keys with scopes, expiry, IP allowlist and audit log |
 | **OpenAPI / Swagger** | Auto-generated specs for auth, admin and tools routers |
 | **MCP server** | `awesome-node-auth-mcp-server` — Cursor/VS Code integration for code generation |
+
+---
+
+## Identity Provider (IdP) Mode *(v1.9)*
+
+Turn any Provisioner into a central IdP that issues RS256-signed JWTs. Downstream Resource Servers validate tokens via the public JWKS endpoint — no shared secrets.
+
+**Generate the RSA private key for your `.env`** (uses Node.js built-in `crypto` — no install needed):
+
+```bash
+node -e "
+const { generateKeyPairSync } = require('crypto');
+const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+const pem = privateKey.export({ type: 'pkcs8', format: 'pem' });
+console.log('IDP_PRIVATE_KEY=' + Buffer.from(pem).toString('base64'));
+"
+```
+
+Then in your config:
+
+```typescript
+// Provisioner (IdP)
+const auth = new AuthConfigurator({
+  accessTokenSecret: '...',
+  refreshTokenSecret: '...',
+  idProvider: {
+    enabled: true,
+    issuer: 'https://auth.myplatform.com',
+    privateKey: Buffer.from(process.env.IDP_PRIVATE_KEY!, 'base64').toString('utf8'),
+  },
+}, userStore);
+
+// Resource Server (downstream)
+import { createJwksAuthMiddleware } from 'awesome-node-auth';
+
+app.use('/api', createJwksAuthMiddleware({
+  jwksUrl: 'https://auth.myplatform.com/.well-known/jwks.json',
+  issuer:  'https://auth.myplatform.com',
+}), myApiRouter);
+```
+
+> In **development**, if you omit `privateKey` an ephemeral keypair is auto-generated at startup.
+
+→ Full guide: [awesomenodeauth.com/docs/advanced/idp-mode](https://awesomenodeauth.com/docs/advanced/idp-mode)
 
 ---
 
@@ -85,6 +130,7 @@ POST   /auth/forgot-password    POST /auth/change-password   DELETE /auth/sessio
 POST   /auth/magic-link/send    POST /auth/2fa/verify        DELETE /auth/account
 GET    /auth/oauth/:provider    GET  /auth/oauth/:provider/callback
 POST   /auth/sessions/cleanup   POST /auth/add-phone         PATCH /auth/profile
+GET    /.well-known/jwks.json                                                            ← IdP mode only
 ```
 
 ---

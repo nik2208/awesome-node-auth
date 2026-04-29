@@ -25,6 +25,7 @@ import { createAuthMiddleware } from '../middleware/auth.middleware';
 import { AuthError } from '../models/errors';
 import { buildAuthOpenApiSpec, buildSwaggerUiHtml } from './openapi';
 import { buildUiRouter } from './ui.router';
+import { JwksService } from '../services/jwks.service';
 
 export interface RouterOptions {
   googleStrategy?: GoogleStrategy;
@@ -467,6 +468,47 @@ export function createAuthRouter(
   const rl = options.rateLimiter ? [options.rateLimiter] : [];
   const allowedOrigins = buildAllowedOrigins(config, options);
 
+  // ── IdP mode: JWKS endpoint ────────────────────────────────────────────────
+  // Registered BEFORE auth middleware so it is always public (no token required).
+  if (config.idProvider?.privateKey || config.idProvider?.enabled === true) {
+    const idp = config.idProvider;
+    const jwksPath = idp.jwksPath ?? '/.well-known/jwks.json';
+
+    // Ensure the keypair is initialised at router-creation time so that the
+    // JWKS document can be derived deterministically for the lifetime of this
+    // router instance.
+    if (!idp.privateKey) {
+      const kp = JwksService.generateKeypair();
+      idp.privateKey = kp.privateKey;
+      idp.publicKey = kp.publicKey;
+    } else if (!idp.publicKey) {
+      idp.publicKey = JwksService.derivePublicKey(idp.privateKey);
+    }
+
+    const jwksDocument = JwksService.buildJwksDocument(idp.publicKey!);
+
+    router.get(jwksPath, (_req: Request, res: Response) => {
+      // Set CORS headers for the JWKS endpoint
+      const corsOrigins = idp.jwksCorsOrigins ?? '*';
+      if (corsOrigins === '*') {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      } else {
+        const origins = Array.isArray(corsOrigins) ? corsOrigins : [corsOrigins];
+        const reqOrigin = (_req.headers['origin'] as string | undefined) ?? '';
+        if (origins.includes(reqOrigin)) {
+          res.setHeader('Access-Control-Allow-Origin', reqOrigin);
+        }
+      }
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.json(jwksDocument);
+    });
+  }
+
+  // ── Resource Server mode: skip auth-flow routes ────────────────────────────
+  // When enabled this instance has no local user DB — only token verification
+  // routes make sense. Auth-flow routes (login / register / etc.) are skipped.
+  const isResourceServer = config.resourceServer?.enabled === true;
+
   // Dynamic CORS — only active when `options.cors.origins` is provided
   if (options.cors?.origins?.length) {
     router.use((req: Request, res: Response, next: NextFunction) => {
@@ -496,7 +538,7 @@ export function createAuthRouter(
   }
 
   // POST /login
-  router.post('/login', ...rl, async (req: Request, res: Response) => {
+  if (!isResourceServer) router.post('/login', ...rl, async (req: Request, res: Response) => {
     try {
       const { email, password } = req.body as { email: string; password: string };
       const user = await localStrategy.authenticate({ email, password }, config);
@@ -545,7 +587,7 @@ export function createAuthRouter(
   // POST /logout
   // We don't use the standard authMiddleware here because we want to clear cookies
   // even if the token is expired or invalid.
-  router.post('/logout', ...rl, async (req: Request, res: Response, next: NextFunction) => {
+  if (!isResourceServer) router.post('/logout', ...rl, async (req: Request, res: Response, next: NextFunction) => {
     // Try to get the user from token, but don't block if it fails
     const token = tokenService.extractTokenFromCookie(req, 'accessToken');
     if (token) {
@@ -577,7 +619,7 @@ export function createAuthRouter(
   });
 
   // POST /refresh
-  router.post('/refresh', ...rl, async (req: Request, res: Response) => {
+  if (!isResourceServer) router.post('/refresh', ...rl, async (req: Request, res: Response) => {
     try {
       // Accept refresh token from request body (bearer flow) or from cookie
       const bodyToken = (req.body as { refreshToken?: string } | undefined)?.refreshToken;
@@ -668,7 +710,7 @@ export function createAuthRouter(
   });
 
   // POST /register (optional — only mounted when onRegister is provided)
-  if (options.onRegister) {
+  if (options.onRegister && !isResourceServer) {
     const onRegister = options.onRegister;
     router.post('/register', ...rl, async (req: Request, res: Response) => {
       try {
@@ -732,7 +774,7 @@ export function createAuthRouter(
   }
 
   // POST /forgot-password
-  router.post('/forgot-password', ...rl, async (req: Request, res: Response) => {
+  if (!isResourceServer) router.post('/forgot-password', ...rl, async (req: Request, res: Response) => {
     try {
       const { email, emailLang } = req.body as { email: string; emailLang?: string };
       const user = await userStore.findByEmail(email);
@@ -757,7 +799,7 @@ export function createAuthRouter(
   });
 
   // POST /reset-password
-  router.post('/reset-password', ...rl, async (req: Request, res: Response) => {
+  if (!isResourceServer) router.post('/reset-password', ...rl, async (req: Request, res: Response) => {
     try {
       const { token, password } = req.body as { token: string; password: string };
       if (!userStore.findByResetToken) {
