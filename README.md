@@ -69,7 +69,6 @@ Full DB examples (MongoDB, PostgreSQL, MySQL, in-memory) → [README.detailed.md
 | **Multi-tenancy** | `ITenantStore` for isolated tenant apps |
 | **Admin panel** | Full-featured admin UI: user management, sessions, roles, tenants, metadata, API keys, webhooks |
 | **Built-in UI** | Zero-dependency HTML/CSS/JS login UI served at `<apiPrefix>/ui/` · **headless mode** for SPAs |
-| **Client libraries** | `ng-awesome-node-auth` (Angular) · `awesome-node-auth-flutter` (Flutter/Dart) |
 | **Event-driven** | `AuthEventBus` · SSE push · inbound/outbound webhooks · telemetry |
 | **API keys** | M2M bcrypt-hashed keys with scopes, expiry, IP allowlist and audit log |
 | **OpenAPI / Swagger** | Auto-generated specs for auth, admin and tools routers |
@@ -149,6 +148,30 @@ const auth = new AuthConfigurator(config, userStore, {
 ```
 
 Full configuration reference → [README.detailed.md § Configuration](./README.detailed.md#configuration)
+
+---
+
+## Ecosystem & porting status
+
+`awesome-node-auth` (this repo) is the **reference implementation**. The same library is being ported to other languages and shipped with official client libraries for popular frontend frameworks. Each port tracks parity against the latest Node release via a dedicated audit issue.
+
+### Server-side ports
+
+| Language | Repo | Parity audit |
+|---|---|---|
+| Go | [`awesome-go-auth`](https://github.com/nik2208/awesome-go-auth) | [#5](https://github.com/nik2208/awesome-go-auth/issues/5) |
+| Rust | [`awesome-rust-auth`](https://github.com/nik2208/awesome-rust-auth) | [#13](https://github.com/nik2208/awesome-rust-auth/issues/13) |
+| Python | [`awesome-python-auth`](https://github.com/nik2208/awesome-python-auth) | [#10](https://github.com/nik2208/awesome-python-auth/issues/10) |
+| Dart (server) | [`awesome-dart-auth`](https://github.com/nik2208/awesome-dart-auth) | [#13](https://github.com/nik2208/awesome-dart-auth/issues/13) |
+
+### Client libraries
+
+| Framework | Repo | API parity audit |
+|---|---|---|
+| Angular | [`ng-awesome-node-auth`](https://github.com/nik2208/ng-awesome-node-auth) | [#6](https://github.com/nik2208/ng-awesome-node-auth/issues/6) |
+| Flutter / Dart | [`awesome-node-auth-flutter`](https://github.com/nik2208/awesome-node-auth-flutter) | [#19](https://github.com/nik2208/awesome-node-auth-flutter/issues/19) |
+
+Each audit issue is a structured checklist covering the full feature surface of the reference implementation, plus the documentation and release tasks (README updates, CHANGELOG entries, version bumps) needed to ship a parity-aligned release.
 
 ---
 
